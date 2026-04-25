@@ -12,7 +12,7 @@ A persistent, living knowledge layer for software projects — a distributed nat
 
 When a `.cns/` directory exists at the project root, the agent:
 1. Loads this skill
-2. Loads or creates `.cns/graph.json` (extract.py does not exist — maintain manually)
+2. Loads or creates `.cns/graph.json` (via scripts/extract.py)
 3. Is ready to call any action on request
 
 The skill never needs to be explicitly invoked — it is ambient.
@@ -56,7 +56,7 @@ Please share what you know:
 **Step 2 — Create `.cns/` structure.** Create:
 - `.cns/index.md` — project-level context, parent of all nodes
 - `.cns/log.md` — activity log, starts with bootstrap entry
-- `.cns/graph.json` — placeholder, populated by extract.py
+- `.cns/graph.json` — populated by scripts/extract.py
 - `.cns/architecture/index.md` — system architecture
 - `.cns/design/index.md` — design language, conventions
 - `.cns/product/index.md` — audience, goals, roadmap direction
@@ -64,7 +64,7 @@ Please share what you know:
 
 **Step 3 — Link architecture/design/product** to `.cns/index.md` via `parent` fields. Set `public: true` on all of them.
 
-**Step 4 — Run `extract.py`** to build the initial `graph.json`.
+**Step 4 — Run `scripts/extract.py`** to build the initial `graph.json`.
 
 **Step 5 — Log** the bootstrap action in `.cns/log.md`.
 
@@ -200,6 +200,7 @@ Each action is defined in its own file under `actions/`.
 | `shard(plan_path)` | `actions/shard.md` | Parcel completed plan into index.md files |
 | `reconcile(path)` | `actions/reconcile.md` | Full reconcile algorithm |
 | `bubble(path)` | `actions/bubble.md` | Parent consistency check after write |
+| `extract(project_root)` | `scripts/extract.py` | Build .cns/graph.json from directory tree |
 | `validate(project_root)` | `scripts/validate.py` | Frontmatter validator — run after every CNS write |
 | `search(project_root, pattern, ...)` | `scripts/search.py` | Grep-like search across CNS content |
 | `query(project_root, ...)` | `scripts/query.py` | List/filter nodes by type, status, author, date |
@@ -233,15 +234,19 @@ The validator checks:
 
 ## Graph Extraction
 
-**IMPORTANT:** `extract.py` does not currently exist at `~/.hermes/skills/nervous-system/scripts/extract.py`. The graph.json must be maintained manually. Before creating it manually, see the Shard Action section for the doc-migration workflow that includes dangling link cleanup.
+Run `scripts/extract.py` to build `.cns/graph.json`:
 
-**If extract.py existed**, it would:
-1. Walk project directory tree
-2. Find all index.md files
-3. Parse frontmatter
-4. Build adjacency graph via `parent` field
-5. Detect cycles, orphans, dangling links
-6. Output `.cns/graph.json`
+```bash
+python3 ~/.hermes/skills/nervous-system/scripts/extract.py /path/to/project
+```
+
+The script:
+1. Walks project directory tree
+2. Finds all index.md files
+3. Parses frontmatter
+4. Builds adjacency graph via `parent` field
+5. Detects cycles, orphans, dangling links
+6. Outputs `.cns/graph.json`
 
 Exit code 1 if cycles or dangling links exist (actionable signal).
 
@@ -310,7 +315,7 @@ Validate manually: no cycles, no orphans, no dangling links. After any CNS struc
 
 ## Verification
 
-- `extract.py` produces valid `.cns/graph.json` with correct edges
+- `scripts/extract.py` produces valid `.cns/graph.json` with correct edges
 - 3-level bubble: change at level 3 → level 2 and `.cns/index.md` updated
 - `human_notes` preserved unchanged after reconcile
 - Decision about deleted feature removed after reconcile

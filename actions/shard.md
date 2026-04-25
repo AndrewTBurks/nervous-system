@@ -114,7 +114,7 @@ When migrating content from monolithic .md files into the CNS (e.g., consolidati
 **Step 7 — Commit cleanup.** `git commit -m "fix: remove dangling links to deleted source docs from CNS nodes"` — this is the final commit confirming parity.
 
 **Key pitfalls discovered through trial and error:**
-- extract.py does not exist — graph.json must be created and maintained manually
+- scripts/extract.py exists — graph.json is maintained via extract.py, not manually
 - Full rewrites (write_file) are safer than patches when source docs have duplicate section headers — patch finds multiple matches and errors out
-- Deleting source files without immediately cleaning dangling links leaves the CNS in a broken state (orphan detection will catch this if running extract.py, but with manual graph.json this must be done deliberately)
+- Deleting source files without immediately cleaning dangling links leaves the CNS in a broken state (orphan detection will catch this when running extract.py)
 - Always commit before starting — provides a safe restore point if CNS content gets mangled during migration
