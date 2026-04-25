@@ -56,6 +56,7 @@ def load_frontmatter(md_path: Path) -> dict[str, Any]:
 
 def build_graph(root: Path) -> dict:
     """Walk .cns/, parse all nodes, build adjacency list."""
+    root = root.resolve()  # normalize to absolute — relative_to() requires it
     cns = root / ".cns"
     nodes: dict[str, dict] = {}
     edges: list[dict] = []
@@ -224,6 +225,10 @@ def main() -> int:
         else:
             for cyc in g["cycles"]:
                 print(" -> ".join(cyc))
+        return 0
+
+    if args.json:
+        print(json.dumps(g, indent=2))
         return 0
 
     # Default: text summary
