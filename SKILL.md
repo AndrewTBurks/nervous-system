@@ -200,6 +200,7 @@ Each action is defined in its own file under `actions/`.
 | `shard(plan_path)` | `actions/shard.md` | Parcel completed plan into index.md files |
 | `reconcile(path)` | `actions/reconcile.md` | Full reconcile algorithm |
 | `bubble(path)` | `actions/bubble.md` | Parent consistency check after write |
+| `audit(path, depth?)` | `actions/audit.md` | Audit node + adjacent nodes against actual code — detect stale docs, broken links, undocumented code |
 | `extract(project_root)` | `scripts/extract.py` | Build .cns/graph.json from directory tree |
 | `validate(project_root)` | `scripts/validate.py` | Frontmatter validator — run after every CNS write |
 | `search(project_root, pattern, ...)` | `scripts/search.py` | Grep-like search across CNS content |
