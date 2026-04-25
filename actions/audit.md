@@ -34,7 +34,13 @@ For the starting node and each adjacent node, run these checks:
 
 **Coverage checks:**
 - For each subdirectory or module represented by a child node, is there a corresponding code directory?
-- Are there code directories with no CNS node at all?
+- Are there top-level source directories or significant public exports that have no CNS node? Only flag **significant** artifacts:
+  - Exported functions/classes/components with a public API surface (not private helpers)
+  - Named modules/packages (not internal utility files like `utils/helpers.ts`)
+  - Files with a clear domain concept (auth, billing, scheduler) not scattered internals
+  - The threshold: would a new developer expect this to be documented?
+
+**Note:** Random private helpers, internal utilities, `*_util.ts`, `*_helper.ts`, or files with no public API do NOT need CNS nodes. Use `--strict` to include these (not recommended).
 
 ### Phase 3 — Report
 
@@ -81,7 +87,7 @@ Return a structured audit report:
 - `broken_link` — a path in `links[]` does not resolve to an existing file
 - `stale` — the doc describes something that no longer matches the code
 - `unimplemented` — a decision claims implementation but code is missing
-- `undocumented` — code exists with no corresponding CNS node
+- `undocumented` — significant code exists with no corresponding CNS node (not private helpers/utils)
 
 ---
 
