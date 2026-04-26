@@ -26,6 +26,9 @@ from pathlib import Path
 from datetime import datetime, timezone
 from typing import Any
 
+sys.path.insert(0, str(Path(__file__).parent))
+from shared import find_all_docs
+
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Graph traversal and validation for CNS.")
@@ -63,15 +66,14 @@ def build_graph(root: Path) -> dict:
     cycles: list[list[str]] = []
 
     # Load all nodes — walk entire project tree, not just .cns/
-    for md_path in sorted(root.rglob("index.md")):
-        if md_path.name in ("log.md", "intent.md"):
-            continue
+    for md_path in find_all_docs(root):
         rel = str(md_path.relative_to(root))
         fm = load_frontmatter(md_path)
         if not fm:
             continue
         nodes[rel] = {
             "path": rel,
+            "file": str(md_path.resolve()),
             "title": fm.get("title", ""),
             "type": fm.get("type", ""),
             "parent": fm.get("parent"),
@@ -130,17 +132,38 @@ def build_graph(root: Path) -> dict:
                 break
             current = str(Path(root / Path(current).parent / parent).resolve().relative_to(root))
 
+    # Detect dangling parent links
+    dangling_links: list[dict] = []
+    for path, node in nodes.items():
+        parent = node.get("parent")
+        if parent:
+            try:
+                parent_resolved = str(Path(root / Path(path).parent / parent).resolve().relative_to(root))
+                if parent_resolved not in nodes:
+                    dangling_links.append({
+                        "from": path,
+                        "to": parent,
+                        "reason": "parent file not found"
+                    })
+            except ValueError:
+                dangling_links.append({
+                    "from": path,
+                    "to": parent,
+                    "reason": "parent path unresolvable"
+                })
+
     return {
         "nodes": nodes,
         "edges": edges,
         "orphans": sorted(set(orphans)),
         "cycles": cycles,
+        "dangling_links": dangling_links,
     }
 
 
 def format_text(root: Path, g: dict) -> str:
     lines = [f"CNS Graph — {root.name}"]
-    lines.append(f"Nodes: {len(g['nodes'])}  Edges: {len(g['edges'])}  Orphans: {len(g['orphans'])}  Cycles: {len(g['cycles'])}")
+    lines.append(f"Nodes: {len(g['nodes'])}  Edges: {len(g['edges'])}  Orphans: {len(g['orphans'])}  Cycles: {len(g['cycles'])}  Dangling: {len(g.get('dangling_links', []))}")
     lines.append("")
 
     if g["orphans"]:
@@ -153,8 +176,13 @@ def format_text(root: Path, g: dict) -> str:
         for cyc in g["cycles"]:
             lines.append(f"  {' -> '.join(cyc)}")
 
-    if not g["orphans"] and not g["cycles"]:
-        lines.append("Graph is valid — no orphans, no cycles.")
+    if g.get("dangling_links"):
+        lines.append(f"\nDANGLING LINKS ({len(g['dangling_links'])}):")
+        for dl in g["dangling_links"]:
+            lines.append(f"  ! {dl['from']} -> {dl['to']} ({dl['reason']})")
+
+    if not g["orphans"] and not g["cycles"] and not g.get("dangling_links"):
+        lines.append("Graph is valid — no orphans, no cycles, no dangling links.")
 
     return "\n".join(lines)
 
@@ -181,6 +209,7 @@ def main() -> int:
             "edges": g["edges"],
             "orphans": g["orphans"],
             "cycles": g["cycles"],
+            "dangling_links": g.get("dangling_links", []),
         }
         graph_path.write_text(json.dumps(output, indent=2), encoding="utf-8")
         print(f"graph.json written — {len(g['nodes'])} nodes, {len(g['edges'])} edges", file=sys.stderr)
@@ -202,8 +231,8 @@ def main() -> int:
         if stored_count != current_count:
             print(f"graph.json stale: has {stored_count} nodes, currently {current_count}", file=sys.stderr)
             return 1
-        if g["orphans"] or g["cycles"]:
-            print(f"graph.json out of sync: orphans={g['orphans']}, cycles={g['cycles']}", file=sys.stderr)
+        if g["orphans"] or g["cycles"] or g.get("dangling_links"):
+            print(f"graph.json out of sync: orphans={g['orphans']}, cycles={g['cycles']}, dangling={g.get('dangling_links', [])}", file=sys.stderr)
             return 1
         print("graph.json OK")
         return 0

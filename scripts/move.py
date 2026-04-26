@@ -19,6 +19,7 @@ EXAMPLES:
 """
 
 import argparse
+import os
 import re
 import shutil
 import sys
@@ -27,7 +28,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 sys.path.insert(0, str(Path(__file__).parent))
-from shared import section, field, item, kv, header, resolve_link
+from shared import section, field, item, kv, header, resolve_link, find_all_docs
 
 
 # ── Frontmatter helpers ───────────────────────────────────────────────────────
@@ -132,13 +133,8 @@ def plan_move(old_path: str, new_path: str, root: Path) -> dict:
     old_abs_str = str(old_abs)
     new_abs_str = str(new_abs)
 
-    # Find all CNS nodes
-    cns = root / ".cns"
-    all_nodes: list[Path] = []
-    for md in sorted(cns.rglob("*.md")):
-        if md.name == "log.md":
-            continue
-        all_nodes.append(md)
+    # Find all nervous-system nodes
+    all_nodes = find_all_docs(root)
 
     # Classify nodes: moved_subtree vs external
     moved_nodes: list[Path] = []
@@ -187,8 +183,10 @@ def plan_move(old_path: str, new_path: str, root: Path) -> dict:
             try:
                 parent_abs.relative_to(old_abs)
                 # Parent is inside the old subtree — needs update
-                new_parent_abs = parent_abs.relative_to(old_abs)
-                new_parent_rel = str(new_parent_abs.relative_to((new_abs / str(md.relative_to(old_abs))).parent))
+                rel_to_old = parent_abs.relative_to(old_abs)
+                new_parent_abs = (new_abs / rel_to_old).resolve()
+                new_md = new_abs / md.relative_to(old_abs)
+                new_parent_rel = os.path.relpath(str(new_parent_abs), str(new_md.parent))
                 md_ops["updates"].append({
                     "field": "parent",
                     "old": parent_rel,

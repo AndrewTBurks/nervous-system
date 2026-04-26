@@ -29,6 +29,9 @@ import argparse
 from pathlib import Path
 from typing import Optional
 
+sys.path.insert(0, str(Path(__file__).parent))
+from shared import find_all_docs
+
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Grep-like search across CNS markdown content.")
@@ -154,7 +157,7 @@ def main() -> int:
     search_body = args.body or not args.frontmatter
 
     all_matches: list[dict] = []
-    for md_path in sorted(cns.rglob("*.md")):
+    for md_path in find_all_docs(args.project_root):
         # Skip log.md — it's activity log, not content
         if md_path.name == "log.md":
             continue

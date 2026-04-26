@@ -18,6 +18,9 @@ import sys
 import yaml
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).parent))
+from shared import find_all_docs
+
 ERRORS: list[str] = []
 
 
@@ -93,7 +96,7 @@ def validate_frontmatter(rel_path: Path, content: str, root: Path) -> None:
 
 
 def walk_cns(root: Path) -> int:
-    """Walk .cns/ and validate every .md file. Returns 0 on pass, 1 on fail."""
+    """Walk CNS and PNS and validate every nervous-system document. Returns 0 on pass, 1 on fail."""
     cns = root / ".cns"
     if not cns.is_dir():
         fatal(f"{root}: .cns/ directory not found")
@@ -102,9 +105,9 @@ def walk_cns(root: Path) -> int:
     # Files that intentionally have no frontmatter
     skip_names = {"log.md", "intent.md"}
 
-    md_files = sorted(cns.rglob("*.md"))
+    md_files = find_all_docs(root)
     if not md_files:
-        print(f"{root}/.cns/: no .md files found")
+        print(f"{root}: no nervous-system documents found")
         return 0
 
     for md_path in md_files:

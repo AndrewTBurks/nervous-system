@@ -98,3 +98,35 @@ def parse_args(script: str, argv: list[str]) -> tuple:
     parser.add_argument("--json", action="store_true")
     args, unknown = parser.parse_known_args(argv)
     return args.project_root.resolve(), args.json, unknown
+
+
+# ─── Nervous-system document discovery ───────────────────────────────────────
+
+def find_all_docs(root: Path) -> list[Path]:
+    """
+    Return all nervous-system documents:
+      - *.md in .cns/ (minus log.md)
+      - all index.md files outside .cns/
+
+    Sorted, deduplicated by resolved path.
+    """
+    cns = root / ".cns"
+    seen: set[Path] = set()
+    docs: list[Path] = []
+
+    for p in sorted(cns.rglob("*.md")):
+        if p.name in ("log.md", "intent.md"):
+            continue
+        rp = p.resolve()
+        if rp not in seen:
+            seen.add(rp)
+            docs.append(p)
+
+    for p in sorted(root.rglob("index.md")):
+        rp = p.resolve()
+        if rp not in seen:
+            seen.add(rp)
+            docs.append(p)
+
+    docs.sort(key=lambda p: str(p))
+    return docs

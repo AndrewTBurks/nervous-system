@@ -38,6 +38,9 @@ except ImportError:
         except ImportError:
             HAS_YAML = False
 
+sys.path.insert(0, str(Path(__file__).parent))
+from shared import find_all_docs
+
 
 def parse_frontmatter(content: str) -> tuple[dict, str]:
     """
@@ -175,12 +178,8 @@ def _simple_parse(yaml_text: str) -> dict:
 
 
 def find_index_md_files(root: Path) -> list[Path]:
-    """Find all index.md files under root, including those in .cns/."""
-    results = []
-    for dirpath, dirnames, filenames in os.walk(root):
-        if 'index.md' in filenames:
-            results.append(Path(dirpath) / 'index.md')
-    return results
+    """Find all nervous-system documents under root."""
+    return find_all_docs(root)
 
 
 def build_graph(files: list[Path], root: Path) -> dict:
@@ -206,38 +205,40 @@ def build_graph(files: list[Path], root: Path) -> dict:
             'title': fm.get('title', rel.stem),
             'type': fm.get('type', 'unknown'),
             'parent': fm.get('parent'),
+            'status': fm.get('status', ''),
+            'decision_count': len(fm.get('decisions', [])),
         }
         nodes.append(node)
         path_to_node[str(rel)] = node
+
+    # Build a lookup of absolute paths -> node path
+    abs_path_to_node = {}
+    for n in nodes:
+        abs_path_to_node[(root / n['path']).resolve()] = n['path']
 
     # Build edges from parent field
     for node in nodes:
         parent = node.get('parent')
         if parent:
-            # Parent path is relative to project root
-            # Auto-append index.md if parent points to a directory
-            parent_path = Path(parent)
-            # If parent points to a directory (no extension in the last component), append index.md.
-            # "backend" -> "backend/index.md". "../index.md" or "../../.cns/index.md" already
-            # point to files and should not be modified.
-            if not parent_path.suffix and parent_path.name == parent_path.name.split('.')[0]:
-                parent_path = parent_path / 'index.md'
-            # Resolve relative to the project root
-            # But first we need the absolute path: resolve the file's directory, then the parent from there
             node_dir = Path(node['file']).parent.resolve()
-            parent_abs = (node_dir / parent_path).resolve()
-            # Try to find a node whose path matches the resolved parent
+            candidates = [
+                (node_dir / parent).resolve(),
+            ]
+            if not Path(parent).suffix:
+                candidates.append((node_dir / (parent + '.md')).resolve())
+            candidates.append((node_dir / parent / 'index.md').resolve())
+
             found = False
-            for n in nodes:
-                n_abs = (root / n['path']).resolve()
-                if n_abs == parent_abs:
+            for cand in candidates:
+                if cand in abs_path_to_node:
                     edges.append({
                         'from': node['path'],
-                        'to': n['path'],
+                        'to': abs_path_to_node[cand],
                         'label': 'parent'
                     })
                     found = True
                     break
+
             if not found:
                 dangling_links.append({
                     'from': node['path'],
@@ -252,7 +253,8 @@ def build_graph(files: list[Path], root: Path) -> dict:
         # Check if there's any non-index.md file in the same directory
         dir_files = list((root / dir_path).iterdir())
         code_files = [f for f in dir_files if f.name != 'index.md' and not f.name.endswith('.md')]
-        if not code_files and node['type'] == 'unknown':
+        # .cns/ directories don't have code files; skip them for orphan detection
+        if not code_files and not str(rel).startswith('.cns'):
             orphans.append(node['path'])
 
     # Detect cycles via parent edges

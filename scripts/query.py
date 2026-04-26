@@ -38,6 +38,9 @@ from pathlib import Path
 from datetime import datetime
 from typing import Any, Optional
 
+sys.path.insert(0, str(Path(__file__).parent))
+from shared import find_all_docs
+
 
 DEFAULT_FIELDS = ["path", "title", "type", "status"]
 
@@ -208,9 +211,7 @@ def main() -> int:
 
     # Collect all nodes
     all_nodes: list[dict] = []
-    for md_path in sorted(cns.rglob("*.md")):
-        if md_path.name == "log.md":
-            continue
+    for md_path in find_all_docs(args.project_root):
         fm = load_node(md_path)
         if fm:
             all_nodes.append(fm)

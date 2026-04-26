@@ -266,7 +266,7 @@ The validator checks:
 2. Required fields: `title`, `type`
 3. Each `decisions[]` entry has `id:`, `date:`, `author:`, `summary:`
 4. No duplicate decision IDs within a file
-6. All `links[]` paths point to existing files
+5. All `links[]` paths point to existing files
 
 ---
 

@@ -23,7 +23,7 @@ from typing import Any, Optional
 
 # ── Shared formatting ────────────────────────────────────────────────────────
 sys.path.insert(0, str(Path(__file__).parent))
-from shared import section, field, item, kv, header, resolve_link, link_status
+from shared import section, field, item, kv, header, resolve_link, link_status, find_all_docs
 
 
 # ── Link resolution ───────────────────────────────────────────────────────────
@@ -55,9 +55,7 @@ def build_link_index(root: Path) -> tuple[dict[str, list[str]], dict[str, list[s
     forward: dict[str, list[str]] = {}
     reverse: dict[str, list[str]] = {}
 
-    for md_path in sorted(cns.rglob("*.md")):
-        if md_path.name == "log.md":
-            continue
+    for md_path in find_all_docs(root):
         rel = str(md_path.relative_to(root))
         fm = load_frontmatter(md_path)
         links_raw = fm.get("links", [])
