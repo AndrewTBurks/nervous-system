@@ -290,15 +290,15 @@ The human reads or updates the central knowledge nodes: `.cns/architecture/index
 1. Human asks the agent about current architecture, design constraints, product goals, or research context
 2. Agent reads the relevant central node(s) and summarizes
 3. Human and agent discuss changes conversationally
-4. Agent integrates the new information into the agent-authored body of the relevant central nodes
-5. If the human explicitly wants something preserved as immutable, they can say "record this in human_notes" — the agent will append it to `human_notes` and reconcile around it on future updates
+4. **The agent records the human's specific direction in `human_notes`** as immutable provenance
+5. The agent integrates that direction into the agent-authored body of the relevant central nodes
 6. After updates, the agent bubbles summaries upward to `.cns/index.md`
 
 **Agent response when human asks about architecture/design/product/research:**
 - Read the relevant central node(s)
 - Summarize current state, decisions, and open questions
-- If the human proposes changes, integrate them into the agent-authored body by default
-- Only use `human_notes` if the human explicitly requests it for permanent assertions
+- If the human proposes changes, **append the human's exact direction to `human_notes`**, then synthesize and integrate it into the agent-authored body
+- The human never needs to say "record this" — their direction is always preserved for provenance
 
 ### Mode B — Plan Upcoming Work
 
