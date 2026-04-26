@@ -119,6 +119,7 @@ audit("components/Button/index.md", depth=2)
 - When investigating a bug and suspect docs may be misleading
 - During reconciliation if the agent detects a mismatch
 - When adopting an unfamiliar part of the codebase
+- **Full-project structural audit** — When the user asks "is my CNS thorough enough?" or "are we missing PNS files?", run a project-wide check: list all nodes with `query.py`, check for orphans with `graph.py --orphans`, compare against the directory tree, and audit line counts against the ~350 limit. This is broader than a single-node audit.
 
 ---
 

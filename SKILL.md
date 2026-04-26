@@ -206,6 +206,8 @@ If `.cns/` exists but the codebase is empty or nearly empty:
 
 **Lazily on demand.** When the agent identifies a gap requiring synthesis or research — during planning, implementation, or reconcile. `extract.py` does not auto-generate index.md files.
 
+**Warning:** The "lazily on demand" policy means deeper subdirectories (e.g., `src/server/pipelines/`) often never get their own nodes if the parent node (`src/server/index.md`) stays under the ~350 line limit. Over time, decisions that belong to the subdirectory accumulate in the parent, making it harder to shard accurately. Run a full-project structural audit periodically to detect these gaps and create child nodes before the parent bloats.
+
 ---
 
 ## Verification
@@ -216,3 +218,53 @@ If `.cns/` exists but the codebase is empty or nearly empty:
 - Decision about deleted feature removed after reconcile
 - `status: dirty` → reconcile → `status: clean`
 - `execute-task` pipeline: intent → plan → implement → test → commit → shard → bubble → validate → log → push → all green
+
+---
+
+## Project Conformity Audit
+
+A full-project audit verifies that the CNS structure adheres to current conventions, removes stale artifacts accumulated over time, and ensures tooling scripts correctly handle edge cases. Run this when `validate.py` or `graph.py --check` report unexpected counts, when stale plan files accumulate, or before major releases.
+
+### Stale Artifact Detection
+
+1. **Survey `.cns/plans/`** — Check for completed task plans that were never deleted after sharding. Each plan should have been distributed into module `index.md` files via `shard()`. If decisions from a plan are already recorded in the target nodes, the plan file is stale and should be deleted.
+2. **Survey `.cns/pns/`** — The centralized `pns/` directory is deprecated. Peripheral nodes should live directly within the source tree (e.g., `src/engine/index.md`) using the `parent` field to link upward. If `.cns/pns/` exists, verify its content is duplicated elsewhere, then delete it.
+3. **Verify atomic sharding** — Before deleting any plan, confirm that its unique content (especially `decisions[]`) has been synthesized into the appropriate `index.md` node body. Do not delete plans that contain unsharded decisions.
+
+### Script Fixes
+
+- **extract.py must skip non-node files** — Files without valid YAML frontmatter (plain-text logs, ephemeral plans, old pns files) must not be counted as graph nodes. Add a frontmatter validity check before including a file in the node count. This prevents `graph.py --check` from reporting stale counts after cleanup.
+- **validate.py must skip plain-text files** — `.cns/intent.md`, `.cns/log.md`, and plan files lack frontmatter and should be excluded from schema validation.
+
+### Missing PNS Node Detection
+
+4. **Survey for undocumented subdirectories** — Use the helper scripts to find directories with meaningful code boundaries but no `index.md`:
+   ```bash
+   python3 scripts/query.py <project_root> --fields path,title,type,status,decision_count
+   python3 scripts/graph.py <project_root> --orphans
+   ```
+   Compare against the actual directory tree. Any subdirectory that represents a conceptual boundary (e.g., `src/server/pipelines/`, `src/wall/layout/`) should have a PNS node. **Do not** create nodes for leaf utility files or internal helpers — only for architectural boundaries that will receive sharded decisions.
+
+5. **Line count audit** — All `index.md` files should stay under ~350 lines for optimal LLM context management. If a file approaches or exceeds this limit, split it by creating a child node for a subdirectory and moving appropriate decisions/content down. Use `query.py` to list all nodes with line counts or inspect files directly.
+
+6. **Link new nodes into parents** — When creating a new PNS node, always add a `links[]` entry in the parent node's frontmatter pointing to the new child. This keeps the graph traversable in both directions (parent field goes up, links[] goes down).
+
+### Node Splitting (when a file exceeds ~350 lines)
+
+When an `index.md` approaches or exceeds the line limit:
+
+1. **Identify topical boundaries** — Read the file and find natural break points where decisions, concepts, or content group into distinct themes (e.g., "Primitives" vs "Stubs" vs "Branching" in architecture).
+2. **Create sub-files** — For each theme, create a new `.md` file in the same directory with `parent: index.md`. Move the relevant body content and any theme-specific decisions into the sub-file's frontmatter.
+3. **Preserve high-level context in index.md** — The index.md must remain a comprehensive entry point. Rewrite it as an overview that: summarizes all core concepts, links to each sub-file, includes a system diagram or structural map if applicable, and aligns with research questions or product goals. A reader should understand the subsystem without opening sub-files.
+4. **Update links[]** — Add `links[]` entries in the parent index.md pointing to each new sub-file. Ensure sub-files also link back to related code modules where appropriate.
+5. **Rebuild and validate** — Run `extract.py`, `validate.py`, and `graph.py --check`.
+6. **Commit atomically** — Include all new files + modified index.md in a single commit.
+
+### Cleanup Pipeline
+
+After removing stale artifacts and fixing scripts:
+
+1. Run `python3 scripts/extract.py` to rebuild `.cns/graph.json`
+2. Run `python3 scripts/validate.py` — must report PASSED
+3. Run `python3 scripts/graph.py --check` — must report OK (no orphans, no cycles, no dangling links)
+4. Commit all changes atomically with a message describing the cleanup
