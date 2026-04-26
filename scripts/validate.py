@@ -105,8 +105,11 @@ def walk_cns(root: Path) -> int:
     # Files that intentionally have no frontmatter:
     #   log.md    — plain-text activity log, not a CNS node
     #   intent.md — plain-text planned-work list, not a CNS node
+    #   plans/*.md — per-task implementation plans, plain text
+    #   pns/*.md  — sharded plan nodes, plain text
     # These are project-level plain-text files per the CNS spec.
     skip_names = {"log.md", "intent.md"}
+    skip_dirs = {".cns/plans", ".cns/pns"}
 
     md_files = find_all_docs(root)
     if not md_files:
@@ -116,6 +119,8 @@ def walk_cns(root: Path) -> int:
     for md_path in md_files:
         rel = md_path.relative_to(root)
         if rel.name in skip_names:
+            continue
+        if any(str(rel).startswith(d) for d in skip_dirs):
             continue
         try:
             content = md_path.read_text(encoding="utf-8")

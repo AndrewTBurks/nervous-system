@@ -169,6 +169,74 @@ Planned work lives in `.cns/intent.md` — a plain text file at the project leve
 
 ---
 
+## Intent-Driven Development Workflow
+
+When the user says something like *"work through the tasks in intent.md"* or *"complete phases X–Y"*, use this workflow. It bridges the gap between "having a plan" and "shipping the plan."
+
+### Principles
+
+1. **One task at a time.** Never implement multiple tasks in a single commit. Each task gets its own plan, its own test cycle, and its own commit.
+2. **Plan before implementing.** For each task, write a short plan in `.cns/plans/task-NN-slug.md`. The plan is the spec; the code is the implementation.
+3. **Test after implementing.** Run the project's test command (e.g., `bun test`, `pytest`) and the build command (e.g., `bun build`) before committing. A red test means the task is not done.
+4. **Commit after each task.** `git add -A && git commit -m "feat(scope): ..."`. This keeps history clean, bisectable, and revertible.
+5. **Update the todo list.** If the project uses a todo tracker, mark the current task completed and the next in-progress before moving on.
+
+### Workflow Steps
+
+**Step 1 — Read the backlog.**
+Read `.cns/intent.md` (or the user's specified task list). Identify the next uncompleted task and its phase. Do not skip ahead.
+
+**Step 2 — Write the task plan.**
+Create `.cns/plans/task-NN-description.md` with:
+- Goal (one sentence)
+- Plan (numbered steps, exact file paths, any schema or type changes)
+- Verification (how to know it's done: tests pass, build succeeds, behavior observed)
+
+Keep it short. A task plan is 10–30 lines, not a design doc. For detailed plan-writing guidance (DRY, YAGNI, TDD, bite-sized tasks), see the `writing-plans` skill.
+
+**Step 3 — Implement.**
+Follow the plan. Patch existing files with `patch`, create new files with `write_file`. Read files as needed to locate exact strings for patching. If a plan step turns out to be wrong, update the plan file, then continue.
+
+When the user explicitly asks to "delegate" or "use subagents," dispatch tasks via `delegate_task`. This is appropriate for large, independent tasks that benefit from isolated context. Otherwise, implement directly to avoid coordination overhead.
+
+**Step 4 — Verify.**
+Run tests and build. Both must pass. If they fail, fix before committing. Do not defer fixes to "later."
+
+**Step 5 — Commit (and push if requested).**
+```bash
+git add -A
+git commit -m "type(scope): description"
+```
+Use conventional commits. The commit message should make sense in `git log` without reading the plan.
+
+If the user asked to "push after each task" or the project has an active remote, run `git push` immediately after the commit.
+
+**Step 6 — Advance the cursor.**
+Mark the task completed in any active todo list. If the user asked to continue until completion, loop back to Step 1 with the next task. Do not ask "shall I continue?" unless the user explicitly requested confirmation.
+
+**Step 7 — Update the source of truth.**
+Mark the task as complete in `.cns/intent.md` (strikethrough or `~~ ~~ — DONE`). Archive the completed plan by copying it to `.cns/pns/` so the plans directory only holds active work:
+```bash
+cp .cns/plans/task-NN-description.md .cns/pns/
+```
+
+**Step 8 — Log completion (optional).**
+If the session is ending or the user asked for a summary, append the completed tasks to `.cns/log.md` with timestamps.
+
+### Anti-Patterns
+
+- **Batching multiple tasks into one commit.** This destroys the ability to bisect and revert.
+- **Skipping tests because "it's just a small change."** Small changes break things constantly.
+- **Writing one giant plan for 10 tasks.** Plans should be per-task. The intent file is the umbrella; the plan files are the execution units.
+- **Delegating to subagents by default.** This workflow assumes direct implementation by the current agent. Use `delegate_task` only when a task is truly independent and large enough to warrant isolation, or when the user explicitly requests it.
+
+### Pitfalls
+
+- **HTML entity encoding in generated files.** Subagents or previous sessions may write files containing HTML entities (`&lt;`, `&gt;`, `&amp;gt;`) instead of literal characters. If tests or builds fail with syntax errors in recently-created files, check for entity encoding and decode before committing.
+- **Subagent interruption.** If a `delegate_task` subagent is interrupted (e.g., by context switching or tool errors), verify the current state by running `git status`, checking which files exist, and running tests before deciding whether to resume or re-implement the task.
+
+---
+
 ## Frontmatter Schema
 
 See `schema.md` for full field reference.
