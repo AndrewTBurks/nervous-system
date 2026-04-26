@@ -197,7 +197,12 @@ def build_graph(files: list[Path], root: Path) -> dict:
 
     for f in files:
         rel = f.relative_to(root)
-        fm, _ = parse_frontmatter(f.read_text(encoding='utf-8'))
+        content = f.read_text(encoding='utf-8')
+        fm, _ = parse_frontmatter(content)
+
+        # Skip files without valid frontmatter (e.g. ephemeral plan files, plain-text logs)
+        if not fm:
+            continue
 
         node = {
             'path': str(rel),
