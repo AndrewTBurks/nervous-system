@@ -17,6 +17,10 @@ When a `.cns/` directory exists at the project root, the agent:
 
 The skill never needs to be explicitly invoked — it is ambient.
 
+When the user asks about architecture, design, or product goals → use **Mode A**.
+When the user wants to plan upcoming work → use **Mode B**.
+When the user wants autonomous execution through intent.md → use **Mode C** (execute-task).
+
 ### 2. Explicit invocation — `/nervous-system`
 
 When the user types `/nervous-system` at the prompt, the agent:
@@ -26,14 +30,16 @@ When the user types `/nervous-system` at the prompt, the agent:
 
 **Action choices on explicit invocation:**
 
-| # | Action | When to use |
+|| # | Action | When to use |
 |---|--------|-------------|
-| 1 | **bootstrap** | No `.cns/` exists yet — initialize the nervous system |
-| 2 | **capture** | Log a decision, record an intent, or note context |
-| 3 | **traverse** | Review project structure and current state before planning |
-| 4 | **reconcile** | Bring a dirty document back in sync with code and human intent |
-| 5 | **shard** | Break a plan into index.md files |
-| 6 | **bubble** | Manually push changes up the parent chain |
+|| 1 | **bootstrap** | No `.cns/` exists yet — initialize the nervous system |
+|| 2 | **capture** | Append a decision to a node's decisions[] |
+|| 3 | **traverse** | Review project structure and current state |
+|| 4 | **plan** | Populate intent.md with upcoming tasks (Mode B) |
+|| 5 | **reconcile** | Bring a dirty document back in sync with code and human intent |
+|| 6 | **shard** | Distribute a plan's content into index.md files |
+|| 7 | **bubble** | Manually push changes up the parent chain |
+|| 8 | **execute-task** | Run full intent-to-ship pipeline for one task (Mode C) |
 
 ---
 
@@ -93,7 +99,7 @@ If `.cns/` exists but the codebase is empty or nearly empty:
 
 **Agent zone** — The body below the frontmatter `---` delimiter is agent-authored. The agent may rewrite this during reconcile.
 
-**Dirty state** — When `human_notes` is updated, set `status: dirty`. The agent detects this and triggers reconciliation.
+**Dirty state** — The agent detects when a document's `human_notes` or agent-authored body has changed relative to its last known state. The agent may also use `status: dirty` as an explicit signal if the human chooses to set it.
 
 **Reconciliation** — The agent reads dirty documents, updates code to honor human intent, shards understanding back into documents, bubbles summaries upward, prunes stale decisions, marks `clean`.
 
@@ -124,6 +130,7 @@ project/
       index.md
     research/              # background research, related work
       index.md
+    plans/                 # ephemeral task plans (created per task, deleted after shard)
   src/
     engine/
       index.md             # peripheral: engine module
@@ -271,6 +278,63 @@ git push
 - **Stale graph.json.** After shard/bubble, always re-run `extract.py` and `graph.py --check`.
 - **Dirty working tree.** If `git status` shows uncommitted changes before starting a task, commit or stash them first.
 
+## Human Interaction Modes
+
+The nervous system supports three distinct modes of human-agent collaboration. The agent must recognize which mode the human is in and respond appropriately.
+
+### Mode A — Inspect/Update Central Descriptions
+
+The human reads or updates the central knowledge nodes: `.cns/architecture/index.md`, `.cns/design/index.md`, `.cns/product/index.md`, `.cns/research/index.md`, and `.cns/index.md`.
+
+**How it works:**
+1. Human asks the agent about current architecture, design constraints, product goals, or research context
+2. Agent reads the relevant central node(s) and summarizes
+3. Human and agent discuss changes conversationally
+4. Agent integrates the new information into the agent-authored body of the relevant central nodes
+5. If the human explicitly wants something preserved as immutable, they can say "record this in human_notes" — the agent will append it to `human_notes` and reconcile around it on future updates
+6. After updates, the agent bubbles summaries upward to `.cns/index.md`
+
+**Agent response when human asks about architecture/design/product/research:**
+- Read the relevant central node(s)
+- Summarize current state, decisions, and open questions
+- If the human proposes changes, integrate them into the agent-authored body by default
+- Only use `human_notes` if the human explicitly requests it for permanent assertions
+
+### Mode B — Plan Upcoming Work
+
+The human and agent collaboratively populate `.cns/intent.md` with the next phase of work.
+
+**How it works:**
+1. Human says something like *"let's plan phase 5"* or *"what should we do next?"*
+2. Agent runs **traverse** to assess current graph state, reads `.cns/intent.md` and `.cns/log.md`
+3. Agent proposes tasks organized by area or priority
+4. Human approves, modifies, or rejects tasks
+5. Agent writes approved tasks into `.cns/intent.md`
+6. If planning surfaces new architectural or design decisions, agent updates the relevant central node and bubbles
+
+**Rules for intent.md format:**
+- Group by phase or area (e.g., `## Phase 5: Productionization`)
+- Each task is a bullet with an ID: `- [ ] TASK-NN: description`
+- Tasks should be small enough for one plan file (1-3 files preferred, max 5)
+- intent.md is **only forward-looking** — never mark tasks done, delete them when completed
+
+### Mode C — Hands-Off Execution
+
+The human delegates implementation to the agent (or subagents) and expects autonomous progress through intent.md.
+
+**How it works:**
+1. Human says something like *"work through tasks in intent.md"* or *"execute task 17"*
+2. Agent runs the **execute-task** action (see below)
+3. For each task: plan → implement → test → commit → shard → bubble → validate → log → push
+4. If `delegate=true`, the agent dispatches a subagent for implementation, validates the result, then continues with CNS maintenance
+5. Agent reports progress after each task completion
+
+**When to switch modes:**
+- Human asks "what is our current architecture?" → Mode A
+- Human asks "what should we work on next?" → Mode B
+- Human says "execute the next 3 tasks" → Mode C
+- Human says "record this in human_notes and make it so" → Mode A → reconcile → may generate new tasks → Mode B
+
 ---
 
 ## Frontmatter Schema
@@ -334,21 +398,78 @@ Each action is defined in its own file under `actions/`.
 
 | Action | File | Description | Scripts |
 |--------|------|-------------|---------|
-| `capture(path, content)` | `actions/capture.md` | Append decision to decisions[] | none |
-| `read(path)` | `actions/read.md` | Read index.md, return frontmatter + body | none |
-| `traverse(root)` | `actions/traverse.md` | Walk graph, build planning context | `extract.py`, `graph.py` |
-| `shard(source_path)` | `actions/shard.md` | Parcel source file content into index.md files | `bubble.py`, `validate.py`, `graph.py` |
-| `reconcile(path)` | `actions/reconcile.md` | Full reconcile algorithm | `validate.py`, `graph.py` |
-| `bubble(path)` | `actions/bubble.md` | Show bubble chain — LLM decides what to write | `bubble.py` |
-| `audit(path, depth?)` | `actions/audit.md` | Audit node + adjacent nodes against actual code | `graph.py`, `link.py` |
-| `execute-task(task_id)` | (inline) | Full pipeline: plan → implement → shard → bubble → commit/push | see below |
-| `extract(project_root)` | `scripts/extract.py` | Build .cns/graph.json from directory tree | — |
-| `validate(project_root)` | `scripts/validate.py` | Frontmatter validator — run after every CNS write | — |
-| `search(project_root, pattern, ...)` | `scripts/search.py` | Grep-like search across CNS content | — |
-| `query(project_root, ...)` | `scripts/query.py` | List/filter nodes by type, status, author, date | — |
-| `graph(project_root, ...)` | `scripts/graph.py` | Build, check, or dump graph structure | — |
-| `link(project_root, node?, ...)` | `scripts/link.py` | Show outgoing links + incoming backlinks | — |
-| `move(project_root, old, new)` | `scripts/move.py` | Dry-run move with link rebasing — `--execute` to run | — |
+|| `capture(path, content)` | `actions/capture.md` | Append decision to decisions[] | none |
+|| `read(path)` | `actions/read.md` | Read index.md, return frontmatter + body | none |
+|| `traverse(root)` | `actions/traverse.md` | Walk graph, build planning context | `extract.py`, `graph.py` |
+|| `plan(tasks[])` | (inline) | Collaborative planning — populate intent.md | `traverse`, `read` |
+|| `shard(source_path)` | `actions/shard.md` | Distribute plan content into index.md files | `bubble.py`, `validate.py`, `graph.py` |
+|| `reconcile(path)` | `actions/reconcile.md` | Full reconcile algorithm | `validate.py`, `graph.py` |
+|| `bubble(path)` | `actions/bubble.md` | Show bubble chain — LLM decides what to write | `bubble.py` |
+|| `audit(path, depth?)` | `actions/audit.md` | Audit node + adjacent nodes against actual code | `graph.py`, `link.py` |
+|| `execute-task(task_id, delegate?)` | (inline) | Full pipeline: plan → implement → shard → bubble → commit/push | see below |
+|| `extract(project_root)` | `scripts/extract.py` | Build .cns/graph.json from directory tree | — |
+|| `validate(project_root)` | `scripts/validate.py` | Frontmatter validator — run after every CNS write | — |
+|| `search(project_root, pattern, ...)` | `scripts/search.py` | Grep-like search across CNS content | — |
+|| `query(project_root, ...)` | `scripts/query.py` | List/filter nodes by type, status, author, date | — |
+|| `graph(project_root, ...)` | `scripts/graph.py` | Build, check, or dump graph structure | — |
+|| `link(project_root, node?, ...)` | `scripts/link.py` | Show outgoing links + incoming backlinks | — |
+|| `move(project_root, old, new)` | `scripts/move.py` | Dry-run move with link rebasing — `--execute` to run | — |
+
+---
+
+## Action: plan (inline)
+
+The `plan` action supports **Mode B** — collaborative planning between human and agent to populate `.cns/intent.md` with upcoming work.
+
+### When to use
+
+- Human says *"what should we do next?"*
+- Human says *"let's plan phase 5"*
+- Human says *"add these items to the backlog"*
+- After reconcile surfaces new work that needs scheduling
+
+### Steps
+
+**1. Traverse current state**
+Run `traverse(root)` to build context: read `.cns/index.md`, key module index.md files, and `.cns/log.md` to understand what has been done.
+
+**2. Read intent.md**
+Check existing planned work to avoid duplication and understand current priorities.
+
+**3. Propose tasks**
+Present a prioritized list of suggested tasks to the human:
+```markdown
+## Proposed tasks for Phase X
+
+- [ ] TASK-21: Implement foo bar (src/engine/foo.ts)
+- [ ] TASK-22: Add baz validation (src/types/baz.ts)
+- [ ] TASK-23: Wire up UI component (components/Baz/Baz.tsx)
+```
+
+For each task, include:
+- One-line description
+- Estimated scope (files touched)
+- Any known dependencies on prior tasks
+
+**4. Human reviews**
+Human approves, rejects, reorders, or modifies tasks. Iterate until agreement.
+
+**5. Write to intent.md**
+Append approved tasks to `.cns/intent.md` using the format:
+```markdown
+## Phase X: Name
+
+- [ ] TASK-NN: description
+```
+
+**6. Bubble if needed**
+If planning surfaces new architectural or design decisions, update the relevant central node and bubble.
+
+**7. Commit**
+```bash
+git add -A
+git commit -m "docs(cns): plan Phase X tasks in intent.md"
+```
 
 ---
 
@@ -387,15 +508,26 @@ Patch existing files with `patch`, create new files with `write_file`.
 
 Before coding, read the target module's `index.md` to respect existing `decisions[]`.
 
-If `delegate=true`, dispatch a `delegate_task` with:
-- The full plan text in `context`
-- The module's `index.md` decisions in `context`
-- `.cns/design/index.md` and `.cns/architecture/index.md` excerpts if relevant
+**If `delegate=true`:**
+1. Dispatch a `delegate_task` with:
+   - The full plan text in `context`
+   - The module's `index.md` decisions in `context`
+   - `.cns/design/index.md` and `.cns/architecture/index.md` excerpts if relevant
+   - Explicit instruction: "Implement, test, and commit the code. Do NOT shard or modify CNS files."
+2. **Parent agent waits for subagent return**, then:
+   - Run tests to validate subagent work
+   - Run build to validate subagent work
+   - If tests fail, fix or re-delegate; do not proceed to CNS maintenance
+   - If tests pass, proceed to Step 6 (shard)
+   - The subagent's commit is the code commit; parent skips Step 5
 
-**4. Verify**
+**If `delegate=false` (default):**
+Implement directly, then continue to Step 4.
+
+**4. Verify (direct mode only)**
 Run the project's test command (e.g., `bun test`, `pytest`). Run the build command. Both must pass.
 
-**5. Commit (code only)**
+**5. Commit code (direct mode only)**
 ```bash
 git add -A
 git commit -m "type(scope): description"
