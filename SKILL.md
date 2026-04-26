@@ -213,13 +213,13 @@ Use conventional commits. The commit message should make sense in `git log` with
 
 If the user asked to "push after each task" or the project has an active remote, run `git push` immediately after the commit.
 
-**Step 6 — Shard the plan into PNS.**
-Read the completed plan. Route decisions to the nearest module `index.md` `decisions[]`. Route context to the module body. Route architecture-level decisions to `.cns/architecture/index.md`.
+**Step 6 — Shard the plan into the graph.**
+Read the completed plan. Distribute its content to the relevant `index.md` nodes throughout the codebase:
+- Route decisions to the nearest module `index.md` `decisions[]`
+- Route context to the module `index.md` body
+- Route architecture-level decisions to `.cns/architecture/index.md`
 
-Copy the plan to `.cns/pns/`:
-```bash
-cp .cns/plans/task-NN-description.md .cns/pns/
-```
+Then delete the plan file — its content now lives in the graph.
 
 **Step 7 — Bubble affected nodes.**
 For every `index.md` modified by shard, push summaries up the parent chain to `.cns/index.md`.
@@ -231,8 +231,8 @@ python3 ~/.hermes/skills/nervous-system/scripts/graph.py /path/to/project --chec
 ```
 If either fails, fix CNS issues before proceeding.
 
-**Step 9 — Mark intent done.**
-In `.cns/intent.md`, mark the task as complete (`~~ ~~ — DONE`).
+**Step 9 — Remove from intent.**
+Delete the completed task from `.cns/intent.md`. `intent.md` is only for forward-looking work; completed tasks live in the log.
 
 **Step 10 — Log completion.**
 Append to `.cns/log.md`:
@@ -246,7 +246,7 @@ Append to `.cns/log.md`:
 **Step 11 — Commit (CNS updates).**
 ```bash
 git add -A
-git commit -m "docs(cns): shard task-NN decisions into PNS, update intent.md + log.md"
+git commit -m "docs(cns): shard task-NN decisions into graph, update intent.md + log.md"
 ```
 
 **Step 12 — Push.**
@@ -402,16 +402,13 @@ git commit -m "type(scope): description"
 ```
 Use conventional commits.
 
-**6. Shard the plan into PNS**
+**6. Shard the plan into the graph**
 Read the completed plan. For each decision, context note, or implementation detail:
 - Route decisions to the nearest module `index.md` `decisions[]`
 - Route context to the module `index.md` body
 - Route architecture-level decisions to `.cns/architecture/index.md`
 
-Then copy the plan to `.cns/pns/`:
-```bash
-cp .cns/plans/task-NN-slug.md .cns/pns/
-```
+Then delete the plan file — its content now lives in the graph.
 
 **7. Bubble affected nodes**
 For every `index.md` modified by shard, push summaries up the parent chain to `.cns/index.md`.
@@ -423,8 +420,8 @@ python3 ~/.hermes/skills/nervous-system/scripts/graph.py /path/to/project --chec
 ```
 If either fails, fix CNS issues before proceeding.
 
-**9. Mark intent done**
-In `.cns/intent.md`, mark the task as complete (`~~ ~~ — DONE`).
+**9. Remove from intent**
+Delete the completed task from `.cns/intent.md`. `intent.md` is only for forward-looking work; completed tasks live in the log.
 
 **10. Log completion**
 Append to `.cns/log.md`:
@@ -438,7 +435,7 @@ Append to `.cns/log.md`:
 **11. Commit (CNS updates)**
 ```bash
 git add -A
-git commit -m "docs(cns): shard task-NN decisions into PNS, update intent.md + log.md"
+git commit -m "docs(cns): shard task-NN decisions into graph, update intent.md + log.md"
 ```
 
 **12. Push**
