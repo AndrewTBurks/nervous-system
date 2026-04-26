@@ -24,7 +24,7 @@ import argparse
 import yaml
 from pathlib import Path
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, Optional
 
 sys.path.insert(0, str(Path(__file__).parent))
 from shared import find_all_docs
@@ -57,6 +57,28 @@ def load_frontmatter(md_path: Path) -> dict[str, Any]:
         return {}
 
 
+def _resolve_parent_path(parent: str, child_path: str, root: Path, abs_path_to_node: dict[Path, str]) -> Optional[str]:
+    """
+    Resolve a parent field to a canonical node path string.
+    Tries three forms (same logic as extract.py):
+      1. child_dir / parent
+      2. child_dir / parent.md
+      3. child_dir / parent / index.md
+    Returns the canonical node path (e.g. 'src/engine/index.md') or None if not found.
+    """
+    child_dir = (root / child_path).parent.resolve()
+    candidates = [
+        (child_dir / parent).resolve(),
+    ]
+    if not Path(parent).suffix:
+        candidates.append((child_dir / (parent + ".md")).resolve())
+        candidates.append((child_dir / parent / "index.md").resolve())
+    for cand in candidates:
+        if cand in abs_path_to_node:
+            return abs_path_to_node[cand]
+    return None
+
+
 def build_graph(root: Path) -> dict:
     """Walk entire project directory tree, parse all index.md files, build adjacency list."""
     root = root.resolve()  # normalize to absolute — relative_to() requires it
@@ -81,16 +103,19 @@ def build_graph(root: Path) -> dict:
             "decision_count": len(fm.get("decisions", [])),
         }
 
+    # Build a lookup: absolute path -> canonical node path
+    abs_path_to_node: dict[Path, str] = {
+        (root / n["path"]).resolve(): n["path"] for n in nodes.values()
+    }
+
     # Build a reverse index: parent_path -> [child_paths]
     children_of: dict[str, list[str]] = {}
     for path, node in nodes.items():
         parent = node.get("parent")
         if parent:
-            # Parent path is relative to the CHILD file's directory
-            # Path(...) to drop any trailing empties from the join
-            # resolve() normalizes .. but needs absolute base — root is absolute
-            parent_resolved = str(Path(root / Path(path).parent / parent).resolve().relative_to(root))
-            children_of.setdefault(parent_resolved, []).append(path)
+            parent_resolved = _resolve_parent_path(parent, path, root, abs_path_to_node)
+            if parent_resolved:
+                children_of.setdefault(parent_resolved, []).append(path)
 
     # BFS from root following children_of (DOWN the tree)
     root_node = ".cns/index.md"
@@ -130,26 +155,22 @@ def build_graph(root: Path) -> dict:
             parent = nodes.get(current, {}).get("parent")
             if not parent:
                 break
-            current = str(Path(root / Path(current).parent / parent).resolve().relative_to(root))
+            parent_resolved = _resolve_parent_path(parent, current, root, abs_path_to_node)
+            if not parent_resolved:
+                break
+            current = parent_resolved
 
     # Detect dangling parent links
     dangling_links: list[dict] = []
     for path, node in nodes.items():
         parent = node.get("parent")
         if parent:
-            try:
-                parent_resolved = str(Path(root / Path(path).parent / parent).resolve().relative_to(root))
-                if parent_resolved not in nodes:
-                    dangling_links.append({
-                        "from": path,
-                        "to": parent,
-                        "reason": "parent file not found"
-                    })
-            except ValueError:
+            parent_resolved = _resolve_parent_path(parent, path, root, abs_path_to_node)
+            if not parent_resolved:
                 dangling_links.append({
                     "from": path,
                     "to": parent,
-                    "reason": "parent path unresolvable"
+                    "reason": "parent file not found"
                 })
 
     return {

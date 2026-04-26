@@ -54,7 +54,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--after")
     parser.add_argument("--before")
     parser.add_argument("--no-parent", action="store_true")
-    parser.add_argument("--with-decisions", action="store_true")
+    parser.add_argument("--with-decisions", dest="with_decisions", action="store_true",
+                        help="Show only nodes that have decisions[]")
     parser.add_argument("--json", action="store_true")
     parser.add_argument("--fields", default=",".join(DEFAULT_FIELDS))
     parser.add_argument("--list-types", action="store_true")

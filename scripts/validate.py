@@ -102,7 +102,10 @@ def walk_cns(root: Path) -> int:
         fatal(f"{root}: .cns/ directory not found")
         return 1
 
-    # Files that intentionally have no frontmatter
+    # Files that intentionally have no frontmatter:
+    #   log.md    — plain-text activity log, not a CNS node
+    #   intent.md — plain-text planned-work list, not a CNS node
+    # These are project-level plain-text files per the CNS spec.
     skip_names = {"log.md", "intent.md"}
 
     md_files = find_all_docs(root)

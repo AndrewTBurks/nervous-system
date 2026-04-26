@@ -246,15 +246,20 @@ def build_graph(files: list[Path], root: Path) -> dict:
                     'reason': 'parent file not found'
                 })
 
-    # Detect orphans: index.md with no nearby code
+    # Detect orphans: PNS index.md with no nearby code (not .cns/ infrastructure)
     for node in nodes:
         rel = Path(node['path'])
+        # .cns/ nodes are always "infrastructure" — never orphans
+        if str(rel).startswith('.cns'):
+            continue
+        # type: unknown is the default before parsing — skip it
+        if node.get('type') == 'unknown':
+            continue
         dir_path = rel.parent
         # Check if there's any non-index.md file in the same directory
         dir_files = list((root / dir_path).iterdir())
         code_files = [f for f in dir_files if f.name != 'index.md' and not f.name.endswith('.md')]
-        # .cns/ directories don't have code files; skip them for orphan detection
-        if not code_files and not str(rel).startswith('.cns'):
+        if not code_files:
             orphans.append(node['path'])
 
     # Detect cycles via parent edges
@@ -329,7 +334,11 @@ def write_graph(graph: dict, output_path: Path) -> None:
 
 
 def main():
-    root = Path(sys.argv[1]) if len(sys.argv) > 1 else Path.cwd()
+    import argparse
+    parser = argparse.ArgumentParser(description="CNS graph extractor.")
+    parser.add_argument("project_root", nargs="?", default=Path.cwd(), type=Path)
+    args = parser.parse_args()
+    root = args.project_root.resolve()
 
     # Find all index.md files
     files = find_index_md_files(root)
@@ -353,7 +362,7 @@ def main():
     print(f"Graph written to {output_path}")
 
     # Return exit code based on issues
-    # Intent warnings are non-fatal (informational only)
+    # dangling_links are actionable — they mean a parent reference points to a missing file
     has_issues = graph['cycles'] or graph['dangling_links']
     return 1 if has_issues else 0
 

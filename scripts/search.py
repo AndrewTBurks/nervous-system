@@ -36,7 +36,7 @@ from shared import find_all_docs
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Grep-like search across CNS markdown content.")
     parser.add_argument("project_root", type=Path)
-    parser.add_argument("pattern", nargs="?", default=None)
+    parser.add_argument("pattern", type=str, help="Regex pattern to search for")
     parser.add_argument("-i", "--insensitive", action="store_true")
     parser.add_argument("--json", action="store_true")
     parser.add_argument("-n", "--linenos", action="store_true", default=True)
@@ -44,15 +44,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--path-only", action="store_true")
     parser.add_argument("--frontmatter", action="store_true")
     parser.add_argument("--body", action="store_true")
-    # Explicit flags after options, use -- to terminate option parsing
-    args, rest = parser.parse_known_args()
-    if rest:
-        # Positional pattern given after -- known_args separator
-        if args.pattern is None:
-            args.pattern = " ".join(rest)
-        else:
-            args.pattern = " ".join([args.pattern] + rest)
-    return args
+    return parser.parse_args()
 
 
 def split_frontmatter(content: str) -> tuple[Optional[str], Optional[str]]:
