@@ -199,13 +199,15 @@ Each action is defined in its own file under `actions/`.
 | `traverse(root)` | `actions/traverse.md` | Walk graph, build planning context |
 | `shard(plan_path)` | `actions/shard.md` | Parcel completed plan into index.md files |
 | `reconcile(path)` | `actions/reconcile.md` | Full reconcile algorithm |
-| `bubble(path)` | `actions/bubble.md` | Parent consistency check after write |
+| `bubble(path)` | `actions/bubble.md` + `scripts/bubble.py` | Show/dry-run bubble chain — `--execute` to run |
 | `audit(path, depth?)` | `actions/audit.md` | Audit node + adjacent nodes against actual code — detect stale docs, broken links, undocumented code |
 | `extract(project_root)` | `scripts/extract.py` | Build .cns/graph.json from directory tree |
 | `validate(project_root)` | `scripts/validate.py` | Frontmatter validator — run after every CNS write |
 | `search(project_root, pattern, ...)` | `scripts/search.py` | Grep-like search across CNS content |
 | `query(project_root, ...)` | `scripts/query.py` | List/filter nodes by type, status, author, date |
 | `graph(project_root, ...)` | `scripts/graph.py` | Build, check, or dump graph structure |
+| `link(project_root, node?, ...)` | `scripts/link.py` | Show outgoing links + incoming backlinks for a node or all nodes |
+| `move(project_root, old, new)` | `scripts/move.py` | Dry-run move with link rebasing — `--execute` to run |
 
 ---
 
