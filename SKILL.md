@@ -199,7 +199,7 @@ Each action is defined in its own file under `actions/`.
 | `traverse(root)` | `actions/traverse.md` | Walk graph, build planning context |
 | `shard(plan_path)` | `actions/shard.md` | Parcel completed plan into index.md files |
 | `reconcile(path)` | `actions/reconcile.md` | Full reconcile algorithm |
-| `bubble(path)` | `actions/bubble.md` + `scripts/bubble.py` | Show/dry-run bubble chain — `--execute` to run |
+| `bubble(path)` | `actions/bubble.md` + `scripts/bubble.py` | Show bubble chain for a node — LLM reads and decides what to write |
 | `audit(path, depth?)` | `actions/audit.md` | Audit node + adjacent nodes against actual code — detect stale docs, broken links, undocumented code |
 | `extract(project_root)` | `scripts/extract.py` | Build .cns/graph.json from directory tree |
 | `validate(project_root)` | `scripts/validate.py` | Frontmatter validator — run after every CNS write |

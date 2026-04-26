@@ -1,90 +1,25 @@
 #!/usr/bin/env python3
 """
-bubble.py — Dry-run bubble analysis for a CNS node.
+bubble.py — Bubble analysis for a CNS node.
 
-Shows the full bubble chain (which parents would be updated, in what order),
-but does NOT write anything. The LLM reads the files and decides what to write.
+Traverses the extends chain upward from a node to the project root,
+showing each parent in the chain. The LLM reads the files and decides
+what (if anything) to write.
 
 USAGE:
-    bubble.py <project_root> <node_path>       # dry-run (default)
-    bubble.py <project_root> <node_path> --execute   # actually run bubble
-    bubble.py <project_root> <node_path> --json       # machine-readable
+    bubble.py <project_root> <node_path>    # analyze chain
+    bubble.py <project_root> <node_path> --json   # machine-readable
 
-EXAMPLES:
+EXAMPLE:
     bubble.py . src/engine/index.md
-    bubble.py . .cns/architecture/index.md --execute
 """
 
 import argparse
 import sys
-import yaml
 from pathlib import Path
-from typing import Any, Optional
 
 sys.path.insert(0, str(Path(__file__).parent))
-from shared import section, field, item, kv, header, resolve_link
-
-
-# ── Frontmatter helpers ───────────────────────────────────────────────────────
-
-def load_frontmatter(md_path: Path) -> dict[str, Any]:
-    try:
-        content = md_path.read_text(encoding="utf-8")
-    except Exception:
-        return {}
-    if not content.startswith("---"):
-        return {}
-    parts = content.split("---", 2)
-    if len(parts) < 3:
-        return {}
-    try:
-        return yaml.safe_load(parts[1]) or {}
-    except Exception:
-        return {}
-
-
-def save_frontmatter(md_path: Path, body: str, fm: dict[str, Any]) -> None:
-    fm_text = yaml.safe_dump(fm, sort_keys=False, allow_unicode=True)
-    content = f"---\n{fm_text}---\n{body}"
-    md_path.write_text(content, encoding="utf-8")
-
-
-def split_frontmatter(md_path: Path) -> tuple[dict[str, Any], str]:
-    """Returns (frontmatter_dict, body_without_frontmatter)"""
-    content = md_path.read_text(encoding="utf-8")
-    if not content.startswith("---"):
-        return {}, content
-    parts = content.split("---", 2)
-    if len(parts) < 3:
-        return {}, content
-    fm = yaml.safe_load(parts[1]) or {}
-    body = parts[2].lstrip("\n")
-    return fm, body
-
-
-def get_body_without_frontmatter(md_path: Path) -> str:
-    """Get just the body (everything after the closing ---)."""
-    content = md_path.read_text(encoding="utf-8")
-    if not content.startswith("---"):
-        return content
-    parts = content.split("---", 2)
-    if len(parts) < 3:
-        return content
-    return parts[2].lstrip("\n")
-
-
-def resolve_parent(parent_rel: str, child_path: Path, root: Path) -> Path:
-    """
-    Resolve a parent path as stored in frontmatter.
-
-    Parent paths in CNS frontmatter are relative to the child file's directory.
-    E.g. if child is .cns/architecture/index.md and parent is "../index.md",
-    the resolved parent is .cns/index.md.
-    """
-    # parent is relative to child's directory
-    parent_abs = (child_path.parent / parent_rel).resolve()
-    # make it relative to root
-    return parent_abs.relative_to(root)
+from shared import section, field
 
 
 # ── Chain builder ─────────────────────────────────────────────────────────────
@@ -126,7 +61,8 @@ def build_bubble_chain(node_path: str, root: Path) -> list[dict]:
         }
 
         if parent_rel:
-            parent_resolved = str(resolve_parent(parent_rel, md_path, root))
+            parent_abs = (md_path.parent / parent_rel).resolve()
+            parent_resolved = str(parent_abs.relative_to(root))
             entry["parent_resolved"] = parent_resolved
         else:
             # No parent — this is the root
@@ -159,64 +95,9 @@ def should_bubble(chain: list[dict]) -> tuple[bool, str]:
     return True, "reached project root"
 
 
-# ── Bubble execution ─────────────────────────────────────────────────────────
+# ── Output formatter ───────────────────────────────────────────────────────────
 
-def synthesize_bubble_entry(child_node: dict, parent_body: str) -> str:
-    """
-    Synthesize a 1-3 sentence summary of a child change to insert into the parent body.
-    """
-    date = ""
-    decisions = []
-    # Try to find date from decisions if present
-    child_path = child_node["node"]
-    root = Path("/").resolve()  # placeholder — resolved at call site
-
-    return (
-        f"> **<{child_node['title']}>** ({child_node['node']}): "
-        f"Change detected in this subtree. "
-        f"Review {child_node['node']} for details."
-    )
-
-
-def execute_bubble(node_path: str, root: Path) -> tuple[int, list[str]]:
-    """
-    Actually perform the bubble writes.
-    Returns (files_written_count, list_of_messages).
-    """
-    chain = build_bubble_chain(node_path, root)
-    if not chain:
-        return 0, ["No chain found"]
-
-    written = []
-    for i, entry in enumerate(chain[:-1]):  # skip root (nothing above it)
-        child = entry
-        parent_entry = chain[i + 1]
-        parent_path = parent_entry["node"]
-
-        md_parent = root / parent_path
-        md_child = root / child["node"]
-
-        fm, body = split_frontmatter(md_parent)
-
-        # Build the insertion text
-        insertion = (
-            f"\n> **<{child['title']}>** ({child['node']}): "
-            f"Change detected in this subtree. "
-            f"Review {child['node']} for details.\n"
-        )
-
-        # Append to body (after frontmatter)
-        new_body = body.rstrip("\n") + "\n" + insertion.lstrip("\n")
-
-        save_frontmatter(md_parent, new_body, fm)
-        written.append(f"WROTE: {parent_path}")
-
-    return len(written), written
-
-
-# ── Output formatters ────────────────────────────────────────────────────────
-
-def format_bubble(node_path: str, root: Path, execute: bool = False, as_json: bool = False) -> str:
+def format_bubble(node_path: str, root: Path, as_json: bool = False) -> str:
     chain = build_bubble_chain(node_path, root)
     should_bub, stop_reason = should_bubble(chain)
 
@@ -232,7 +113,6 @@ def format_bubble(node_path: str, root: Path, execute: bool = False, as_json: bo
 
     lines = [section("bubble", node_path)]
 
-    # Chain summary
     lines.append(field("start", node_path))
     lines.append(field("chain_length", str(len(chain))))
     lines.append(field("would_bubble", "true" if should_bub else "false"))
@@ -255,26 +135,15 @@ def format_bubble(node_path: str, root: Path, execute: bool = False, as_json: bo
             lines.append(f"  [{i}] {entry['node']} ({pub}){parent_info}")
             lines.append(f"      title: {entry['title']}")
 
-    if execute and should_bub:
-        lines.append("")
-        written_count, written_msgs = execute_bubble(node_path, root)
-        lines.append(f"executed: {written_count} file(s) written")
-        for msg in written_msgs:
-            lines.append(f"  {msg}")
-    elif execute and not should_bub:
-        lines.append("")
-        lines.append("executed: no bubble performed (stop_reason: {stop_reason})")
-
     return "\n".join(lines)
 
 
 # ── Main ─────────────────────────────────────────────────────────────────────
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Bubble dry-run (or execute) for a CNS node.")
+    parser = argparse.ArgumentParser(description="Bubble analysis for a CNS node.")
     parser.add_argument("project_root", type=Path, default=Path.cwd())
     parser.add_argument("node", nargs="?", default=None, help="CNS node path")
-    parser.add_argument("--execute", action="store_true", help="Actually perform bubble (default is dry-run)")
     parser.add_argument("--json", action="store_true", help="Machine-readable output")
     args = parser.parse_args()
 
@@ -292,7 +161,7 @@ def main() -> int:
         print(f"Error: {node_path} not found", file=sys.stderr)
         return 1
 
-    result = format_bubble(node_path, root, execute=args.execute, as_json=args.json)
+    result = format_bubble(node_path, root, as_json=args.json)
     print(result)
     return 0
 
