@@ -106,10 +106,9 @@ def walk_cns(root: Path) -> int:
     #   log.md    — plain-text activity log, not a CNS node
     #   intent.md — plain-text planned-work list, not a CNS node
     #   plans/*.md — per-task implementation plans, plain text
-    #   pns/*.md  — sharded plan nodes, plain text
     # These are project-level plain-text files per the CNS spec.
     skip_names = {"log.md", "intent.md"}
-    skip_dirs = {".cns/plans", ".cns/pns"}
+    skip_dirs = {".cns/plans"}
 
     md_files = find_all_docs(root)
     if not md_files:

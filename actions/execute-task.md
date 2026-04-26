@@ -8,6 +8,8 @@ Run the full intent-to-ship pipeline for a single task from `.cns/intent.md`. Th
 intent.md → plan → implement → test → commit → shard → bubble → validate → log → push
 ```
 
+**11 steps total** (0 pre-flight + 10 execution steps).
+
 ## Parameters
 
 | Parameter | Type | Description |
@@ -17,16 +19,29 @@ intent.md → plan → implement → test → commit → shard → bubble → va
 
 ## Steps
 
+**0. Pre-flight — ensure graph is current**
+```bash
+python3 ~/.hermes/skills/nervous-system/scripts/extract.py <project_root>
+```
+A stale `graph.json` produces stale traversal context. Run this before every session.
+
 **1. Read intent**
 Read `.cns/intent.md`. Find the first uncompleted task matching `task_id` or the next uncompleted task if `task_id` is omitted. Do not skip ahead.
 
 **2. Write the task plan**
-Create `.cns/plans/task-NN-slug.md` with:
-- Goal (one sentence)
-- Plan (numbered steps, exact file paths, schema/type changes)
-- Verification (how to know it's done)
+Create `.cns/plans/task-NN-slug.md` with exactly these 7 sections:
 
-Keep it short — 10–30 lines.
+| Section | Purpose | Shard target |
+|---------|---------|-------------|
+| **Goal** | One sentence describing the task | — |
+| **Plan** | Numbered steps, exact file paths, schema/type changes | — |
+| **Verification** | How to know it's done (tests, build, manual check) | — |
+| **Decisions Made** | Architecture/design choices made during implementation | `decisions[]` of nearest index.md |
+| **Context** | Why this approach was chosen, tradeoffs considered | Body of nearest index.md |
+| **Implementation Notes** | Technical details, gotchas, exact API usage | Body of nearest index.md |
+| **Files Changed** | List of files created or modified with brief rationale | `links[]` of nearest index.md |
+
+Keep it short — 30–60 lines total. The first 3 sections guide execution; the last 4 feed the shard.
 
 **3. Implement**
 Patch existing files with `patch`, create new files with `write_file`.
@@ -52,12 +67,13 @@ Implement directly, then continue to Step 4.
 **4. Verify (direct mode only)**
 Run the project's test command (e.g., `bun test`, `pytest`). Run the build command. Both must pass.
 
-**5. Commit code (direct mode only)**
+**5. Commit code and CNS atomically (direct mode only)**
+Stage all changes — code, plans, sharded index.md files, intent.md, log.md — in a single commit:
 ```bash
 git add -A
-git commit -m "type(scope): description"
+git commit -m "type(scope): task-NN description"
 ```
-Use conventional commits.
+Use conventional commits. Code changes and CNS maintenance (shard + bubble + validate + log) must never be split into separate commits. They are one logical unit.
 
 **6. Shard the plan into the graph**
 Read the completed plan. For each decision, context note, or implementation detail:
@@ -89,13 +105,7 @@ Append to `.cns/log.md`:
 - Tests: X pass, 0 fail
 ```
 
-**11. Commit (CNS updates)**
-```bash
-git add -A
-git commit -m "docs(cns): shard task-NN decisions into graph, update intent.md + log.md"
-```
-
-**12. Push**
+**11. Push**
 ```bash
 git push
 ```
@@ -135,7 +145,6 @@ VERIFICATION REQUIREMENTS:
 
 ## Anti-Patterns
 
-- **Batching multiple tasks into one commit.** Each task gets its own commit. Code commit first, CNS commit second.
 - **Skipping tests.** A red test means the task is not done.
 - **Forgetting the CNS health gate.** validate.py + graph.py --check must pass before push.
 - **Delegating by default.** Use direct implementation for small, familiar tasks to avoid coordination overhead.
@@ -149,3 +158,52 @@ VERIFICATION REQUIREMENTS:
 - **Subagent interruption.** If a `delegate_task` subagent is interrupted, verify state with `git status`, check files, and run tests before deciding to resume or re-implement.
 - **Stale graph.json.** After shard/bubble, always re-run `extract.py` and `graph.py --check`. A stale graph breaks downstream queries.
 - **Dirty working tree.** If `git status` shows uncommitted changes before starting a task, commit or stash them first.
+
+---
+
+## Appendix: Sub-Procedure Quick Reference
+
+An agent running this pipeline should not need to hunt through separate action files. The condensed versions of the sub-procedures are inlined here.
+
+### shard(source_path)
+
+1. Read the plan file at `source_path`.
+2. Extract the 4 shardable sections: **Decisions Made**, **Context**, **Implementation Notes**, **Files Changed**.
+3. For each section, determine the nearest module `index.md`:
+   - Use the file paths listed in **Files Changed** to map to directories.
+   - If no `index.md` exists in that directory, create one with basic frontmatter (`title`, `type: module`).
+4. Route content:
+   - **Decisions Made** → append to `decisions[]` with `author: agent`, `date: today`, `id: DEC-NNN`.
+   - **Context** → synthesize 1–3 sentences, append to agent-authored body.
+   - **Implementation Notes** → synthesize 1–3 sentences, append to agent-authored body.
+   - **Files Changed** → append to `links[]` with `id` and `path`.
+5. Delete the plan file — its content now lives in the graph.
+
+### bubble(path)
+
+1. Read the `index.md` at `path`.
+2. Run `bubble.py` to analyze the parent chain: `python3 ~/.hermes/skills/nervous-system/scripts/bubble.py <project_root> <path>`.
+3. Determine if the change is externally relevant (public API, significant decision, new module).
+4. If yes: synthesize a 1–3 sentence summary written from the parent's perspective.
+5. Walk the parent chain upward. At each parent, insert the summary into the agent-authored body if not already present.
+6. Stop at `.cns/index.md` or when the change is purely local.
+
+### validate
+
+```bash
+python3 ~/.hermes/skills/nervous-system/scripts/validate.py <project_root>
+python3 ~/.hermes/skills/nervous-system/scripts/graph.py <project_root> --check
+```
+Both must pass (exit code 0). If either fails, fix CNS issues before proceeding.
+
+### log
+
+Append to `.cns/log.md`:
+```markdown
+## YYYY-MM-DD
+
+### HH:MM — Task NN completed
+- Decision DEC-XXX added to src/.../index.md
+- File src/.../foo.ts implemented and tested
+- Tests: X pass, 0 fail
+```

@@ -14,6 +14,12 @@ The human reads or updates the central knowledge nodes through conversation with
 
 ## Steps
 
+**0. Pre-flight — ensure graph is current**
+```bash
+python3 ~/.hermes/skills/nervous-system/scripts/extract.py <project_root>
+```
+A stale `graph.json` produces stale traversal context. Run this before every session.
+
 **1. Read relevant nodes**
 Agent reads the central node(s) the human is asking about.
 

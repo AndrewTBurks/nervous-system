@@ -148,48 +148,48 @@ Each action is defined in its own file under `actions/`.
 
 ## Script Index
 
-| Script | File | Description |
-|--------|------|-------------|
-| `extract(project_root)` | `scripts/extract.py` | Build .cns/graph.json from directory tree |
-| `validate(project_root)` | `scripts/validate.py` | Frontmatter validator — run after every CNS write |
-| `search(project_root, pattern, ...)` | `scripts/search.py` | Grep-like search across CNS content |
-| `query(project_root, ...)` | `scripts/query.py` | List/filter nodes by type, status, author, date |
-| `graph(project_root, ...)` | `scripts/graph.py` | Build, check, or dump graph structure |
-| `link(project_root, node?, ...)` | `scripts/link.py` | Show outgoing links + incoming backlinks |
-| `move(project_root, old, new)` | `scripts/move.py` | Dry-run move with link rebasing |
+|| Script | File | Description |
+||--------|------|-------------|
+|| `bootstrap(project_root, ...)` | `scripts/bootstrap.py` | Initialize .cns/ structure for a new project |
+|| `extract(project_root)` | `scripts/extract.py` | Build .cns/graph.json from directory tree |
+|| `validate(project_root)` | `scripts/validate.py` | Frontmatter validator — run after every CNS write |
+|| `search(project_root, pattern, ...)` | `scripts/search.py` | Grep-like search across CNS content |
+|| `query(project_root, ...)` | `scripts/query.py` | List/filter nodes by type, status, author, date |
+|| `graph(project_root, ...)` | `scripts/graph.py` | Build, check, or dump graph structure |
+|| `link(project_root, node?, ...)` | `scripts/link.py` | Show outgoing links + incoming backlinks |
+|| `move(project_root, old, new)` | `scripts/move.py` | Dry-run move with link rebasing |
 
 ---
 
 ## Bootstrap Flow (when `.cns/` is absent)
 
-Run this when initializing the nervous system for a new project.
+Run `scripts/bootstrap.py` to initialize the nervous system for a new project.
 
-**Step 1 — Gather context.** Ask the user:
-```
-No `.cns/` found. Let's bootstrap the nervous system.
-
-Please share what you know:
-1. What is this project called and what does it do?
-2. What is the tech stack / key modules?
-3. Do you have any existing design, architecture, or context docs?
-4. Any key decisions already made? (auth strategy, data model, etc.)
-5. What does "done" look like for this project?
+```bash
+python3 ~/.hermes/skills/nervous-system/scripts/bootstrap.py <project_root> [options]
 ```
 
-**Step 2 — Create `.cns/` structure.** Create:
+**Options:**
+- `--name`: Project name
+- `--description`: One-line description
+- `--stack`: Tech stack (comma-separated)
+- `--modules`: Key modules (comma-separated)
+- `--decisions`: Existing decisions in `ID|date|author|summary` format, one per line
+
+**Without options**, it creates skeleton files with placeholder content.
+
+**What it creates:**
 - `.cns/index.md` — project-level context, parent of all nodes
-- `.cns/log.md` — activity log, starts with bootstrap entry
-- `.cns/graph.json` — populated by scripts/extract.py
+- `.cns/log.md` — activity log with bootstrap entry
+- `.cns/graph.json` — populated by calling `extract.py`
 - `.cns/architecture/index.md` — system architecture
 - `.cns/design/index.md` — design language, conventions
 - `.cns/product/index.md` — audience, goals, roadmap direction
-- `.cns/intent.md` — planned work (plain text, starts empty)
+- `.cns/research/index.md` — background research, related work
+- `.cns/intent.md` — planned work (plain text, starts with Phase 1 placeholder)
+- `.cns/plans/` — directory for ephemeral task plans
 
-**Step 3 — Link architecture/design/product** to `.cns/index.md` via `parent` fields.
-
-**Step 4 — Run `scripts/extract.py`** to build the initial `graph.json`.
-
-**Step 5 — Log** the bootstrap action in `.cns/log.md`.
+All central nodes are linked to `.cns/index.md` via `parent` fields.
 
 ---
 

@@ -11,6 +11,12 @@ Collaboratively populate `.cns/intent.md` with the next phase of work. This is *
 
 ## Steps
 
+**0. Pre-flight — ensure graph is current**
+```bash
+python3 ~/.hermes/skills/nervous-system/scripts/extract.py <project_root>
+```
+A stale `graph.json` produces stale traversal context. Run this before every session.
+
 **1. Traverse current state**
 Run `traverse(root)` to build context: read `.cns/index.md`, key module `index.md` files, and `.cns/log.md` to understand what has been done.
 

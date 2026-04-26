@@ -32,24 +32,43 @@ Parse a source file and parcel its contents into the appropriate index.md files 
 
 ## Source File Structure
 
-The source file may contain sections like:
+The source file (typically a plan from `execute-task`) contains these 7 sections:
 
 ```
-## Decisions Made
+## Goal
+One sentence describing the task.
 
-- DEC-001: Chose Postgres over MongoDB for auth data
-- DEC-002: Session tokens expire after 24h
+## Plan
+1. Step one...
+2. Step two...
+
+## Verification
+Run `bun test` and expect X passes.
+
+## Decisions Made
+- DEC-001: Chose approach A over B
 
 ## Context
-
-The auth service needs to handle refresh token rotation...
+Why approach A was chosen, tradeoffs considered...
 
 ## Implementation Notes
+Technical details, gotchas, exact API usage...
 
-The token validation logic lives in services/auth/token.ts...
+## Files Changed
+- src/foo.ts (created: new utility)
+- src/bar.ts (modified: added handler)
 ```
 
-Each section maps to a different target in index.md.
+Each section maps to a different target in index.md:
+
+| Section | Shard target |
+|---------|-------------|
+| Decisions Made | `decisions[]` of nearest index.md |
+| Context | Body of nearest index.md |
+| Implementation Notes | Body of nearest index.md |
+| Files Changed | `links[]` of nearest index.md |
+
+Goal, Plan, and Verification are execution guidance and are not sharded.
 
 ---
 
