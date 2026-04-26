@@ -2,9 +2,14 @@
 """
 bubble.py — Bubble analysis for a CNS node.
 
-Traverses the extends chain upward from a node to the project root,
-showing each parent in the chain. The LLM reads the files and decides
-what (if anything) to write.
+Traverses the parent chain upward from a node to the project root,
+showing each parent in the chain. This is analysis-only — it reads
+files and reports the chain; the LLM then decides independently what
+(if anything) to write.
+
+The bubble always reaches the project root. What gets written at each
+level depends on whether the change is externally relevant — the agent
+makes that judgment, not a flag.
 
 USAGE:
     bubble.py <project_root> <node_path>    # analyze chain
@@ -16,21 +21,52 @@ EXAMPLE:
 
 import argparse
 import sys
+import yaml
 from pathlib import Path
+from typing import Any
 
 sys.path.insert(0, str(Path(__file__).parent))
 from shared import section, field
+
+
+# ── Frontmatter helpers ───────────────────────────────────────────────────────
+
+def load_frontmatter(md_path: Path) -> dict[str, Any]:
+    """Parse YAML frontmatter from a markdown file. Returns {} on failure."""
+    try:
+        content = md_path.read_text(encoding="utf-8")
+    except Exception:
+        return {}
+    if not content.startswith("---"):
+        return {}
+    parts = content.split("---", 2)
+    if len(parts) < 3:
+        return {}
+    try:
+        return yaml.safe_load(parts[1]) or {}
+    except Exception:
+        return {}
+
+
+def get_body_without_frontmatter(md_path: Path) -> str:
+    """Get just the body (everything after the closing ---)."""
+    content = md_path.read_text(encoding="utf-8")
+    if not content.startswith("---"):
+        return content
+    parts = content.split("---", 2)
+    if len(parts) < 3:
+        return content
+    return parts[2].lstrip("\n")
 
 
 # ── Chain builder ─────────────────────────────────────────────────────────────
 
 def build_bubble_chain(node_path: str, root: Path) -> list[dict]:
     """
-    Walk upward from node_path following parent links.
-    Returns list of {node, public, parent, parent_resolved, body_summary} dicts.
-    Stops when: public=false, parent missing, or project root reached.
+    Walk upward from node_path following parent links to the project root.
+    Returns list of {node, parent, parent_resolved, body_preview} dicts.
+    The chain always reaches the root (.cns/index.md or equivalent).
     """
-    cns = root / ".cns"
     chain = []
     current = node_path
     visited: set[str] = set()
@@ -46,7 +82,6 @@ def build_bubble_chain(node_path: str, root: Path) -> list[dict]:
 
         fm = load_frontmatter(md_path)
         node_title = fm.get("title", current)
-        is_public = fm.get("public", False)
         parent_rel = fm.get("parent")
         body = get_body_without_frontmatter(md_path)
         body_preview = body[:120].replace("\n", " ").strip() if body else ""
@@ -54,7 +89,6 @@ def build_bubble_chain(node_path: str, root: Path) -> list[dict]:
         entry = {
             "node": current,
             "title": node_title,
-            "public": is_public,
             "parent_rel": parent_rel,
             "parent_resolved": None,
             "body_preview": body_preview,
@@ -70,11 +104,6 @@ def build_bubble_chain(node_path: str, root: Path) -> list[dict]:
             break
 
         chain.append(entry)
-
-        if not is_public:
-            # Private nodes update their parent but don't continue upward
-            break
-
         current = parent_resolved
 
     return chain
@@ -82,17 +111,12 @@ def build_bubble_chain(node_path: str, root: Path) -> list[dict]:
 
 def should_bubble(chain: list[dict]) -> tuple[bool, str]:
     """
-    Determine if bubble should proceed and where it stops.
-    Returns (should_bubble, stop_reason).
+    The bubble always reaches the root. Returns (True, reason).
+    The judgment of whether to write at each level is left to the LLM.
     """
     if not chain:
         return False, "empty chain"
-    last = chain[-1]
-    if last["parent_resolved"] is None:
-        return True, "reached project root"
-    if not last["public"]:
-        return False, "parent is public: false"
-    return True, "reached project root"
+    return True, "reaches project root"
 
 
 # ── Output formatter ───────────────────────────────────────────────────────────
@@ -118,21 +142,18 @@ def format_bubble(node_path: str, root: Path, as_json: bool = False) -> str:
     lines.append(field("would_bubble", "true" if should_bub else "false"))
     lines.append(field("stop_reason", stop_reason))
     lines.append("")
-
     lines.append("chain:")
     if not chain:
         lines.append("  (empty)")
     else:
         for i, entry in enumerate(chain, 1):
-            parent_info = ""
             if entry["parent_resolved"]:
                 parent_info = f" -> {entry['parent_resolved']}"
             elif entry["parent_rel"] is None:
                 parent_info = " (root)"
             else:
                 parent_info = f" -> {entry['parent_rel']} [RESOLVE ERROR]"
-            pub = "public" if entry["public"] else "private"
-            lines.append(f"  [{i}] {entry['node']} ({pub}){parent_info}")
+            lines.append(f"  [{i}] {entry['node']}{parent_info}")
             lines.append(f"      title: {entry['title']}")
 
     return "\n".join(lines)

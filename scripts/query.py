@@ -6,29 +6,25 @@ USAGE:
     query.py <project_root> [options]
 
 OPTIONS:
-    --type TYPE         Filter by type (project, component, service, module, package)
-    --status STATUS     Filter by status (clean, dirty, reconciling)
-    --author AUTHOR     Show only decisions by this author
-    --after DATE        ISO date string — show decisions after this date
-    --before DATE       ISO date string — show decisions before this date
-    --category CAT      Filter intents by category (feature, bug, refactor, research, exploration)
-    --intent-status S   Filter intents by status (pending, in_progress, completed, cancelled)
-    --no-parent         Show nodes with no parent field
-    --with-intents      Show only nodes that have intents[]
-    --with-decisions    Show only nodes that have decisions[]
-    --json              Machine-readable JSON output
-    --fields F1,F2      Comma-separated fields to include in output (default: path,title,type,status)
+    --type TYPE       Filter by type (project, component, service, module, package)
+    --status STATUS   Filter by status (clean, dirty, reconciling)
+    --author AUTHOR   Show only decisions by this author
+    --after DATE      ISO date string — show decisions after this date
+    --before DATE     ISO date string — show decisions before this date
+    --no-parent       Show nodes with no parent field
+    --with-decisions  Show only nodes that have decisions[]
+    --json            Machine-readable JSON output
+    --fields F1,F2    Comma-separated fields to include in output (default: path,title,type,status)
 
-    --list-types        Show all unique type values found
-    --list-statuses     Show all unique status values found
-    --list-authors      Show all unique decision authors found
+    --list-types      Show all unique type values found
+    --list-statuses   Show all unique status values found
+    --list-authors    Show all unique decision authors found
 
 EXAMPLES:
     query.py /path/to/project
     query.py /path/to/project --type project
     query.py /path/to/project --status dirty
     query.py /path/to/project --author agent
-    query.py /path/to/project --category feature --intent-status pending
     query.py /path/to/project --no-parent
     query.py /path/to/project --json
     query.py /path/to/project --list-authors
@@ -54,10 +50,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--author")
     parser.add_argument("--after")
     parser.add_argument("--before")
-    parser.add_argument("--category")
-    parser.add_argument("--intent-status")
     parser.add_argument("--no-parent", action="store_true")
-    parser.add_argument("--with-intents", action="store_true")
     parser.add_argument("--with-decisions", action="store_true")
     parser.add_argument("--json", action="store_true")
     parser.add_argument("--fields", default=",".join(DEFAULT_FIELDS))
@@ -108,14 +101,6 @@ def decision_matches(d: dict, author: str, after: datetime, before: datetime) ->
     return True
 
 
-def intent_matches(i: dict, category: str, istatus: str) -> bool:
-    if category and i.get("category") != category:
-        return False
-    if istatus and i.get("status") != istatus:
-        return False
-    return True
-
-
 def node_matches(
     fm: dict,
     opts: argparse.Namespace,
@@ -127,8 +112,6 @@ def node_matches(
         return False
     if opts.no_parent and "parent" in fm:
         return False
-    if opts.with_intents and not fm.get("intents"):
-        return False
     if opts.with_decisions and not fm.get("decisions"):
         return False
 
@@ -137,14 +120,6 @@ def node_matches(
         if not any(
             decision_matches(d, opts.author or "", after_dt, before_dt)
             for d in fm["decisions"]
-        ):
-            return False
-
-    # Intent filters
-    if (opts.category or opts.intent_status) and fm.get("intents"):
-        if not any(
-            intent_matches(i, opts.category or "", opts.intent_status or "")
-            for i in fm["intents"]
         ):
             return False
 
@@ -165,8 +140,6 @@ def extract_values(nodes: list[dict], field: str) -> set[str]:
                     vals.add(a)
         elif field == "decision_count":
             vals.add(str(len(n.get("decisions", []))))
-        elif field == "intent_count":
-            vals.add(str(len(n.get("intents", []))))
     return {v for v in vals if v}
 
 
@@ -186,8 +159,6 @@ def format_human(nodes: list[dict], fields: list[str]) -> str:
                 row.append(n.get("status", ""))
             elif f == "decision_count":
                 row.append(str(len(n.get("decisions", []))))
-            elif f == "intent_count":
-                row.append(str(len(n.get("intents", []))))
             elif f == "last_reconciled":
                 row.append(str(n.get("last_reconciled", "")))
             elif f == "parent":
@@ -214,16 +185,12 @@ def format_json(nodes: list[dict], fields: list[str]) -> str:
                 obj["status"] = n.get("status", "")
             elif f == "decision_count":
                 obj["decision_count"] = len(n.get("decisions", []))
-            elif f == "intent_count":
-                obj["intent_count"] = len(n.get("intents", []))
             elif f == "last_reconciled":
                 obj["last_reconciled"] = n.get("last_reconciled", "")
             elif f == "parent":
                 obj["parent"] = n.get("parent", "")
             elif f == "decisions":
                 obj["decisions"] = n.get("decisions", [])
-            elif f == "intents":
-                obj["intents"] = n.get("intents", [])
         out.append(obj)
     return json.dumps(out, indent=2)
 

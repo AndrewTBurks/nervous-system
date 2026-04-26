@@ -2,6 +2,8 @@
 
 Run the full reconciliation algorithm on one or more index.md files. Triggered when a document has `status: dirty`. This is the core feedback loop that aligns code with human intent.
 
+**Scripts referenced:** `validate.py`, `graph.py`
+
 ---
 
 ## Behavior
@@ -20,7 +22,7 @@ Run the full reconciliation algorithm on one or more index.md files. Triggered w
 6. For each updated document:
    a. Run bubble consistency check against parent
    b. If parent is now inconsistent, update parent's agent body
-   c. Continue bubbling if public: true
+   c. Continue bubbling to the root
 7. Prune: remove decisions whose premise no longer holds
 8. Set status: clean, update last_reconciled
 9. Log action to .cns/log.md

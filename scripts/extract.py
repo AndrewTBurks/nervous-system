@@ -187,16 +187,11 @@ def build_graph(files: list[Path], root: Path) -> dict:
     """
     Build adjacency graph from index.md files.
     Returns graph dict with nodes, edges, orphans, cycles, dangling_links.
-
-    Special handling for .cns/intents/index.md:
-    - Must have type: intents_root
-    - Each entry in intents[] is validated for required fields
     """
     nodes = []
     edges = []
     orphans = []
     dangling_links = []
-    intent_warnings = []
 
     # Track which paths we've seen
     path_to_node = {}
@@ -207,55 +202,13 @@ def build_graph(files: list[Path], root: Path) -> dict:
 
         node = {
             'path': str(rel),
-            'file': str(f),  # captured here for use in the parent-resolve loop
+            'file': str(f),
             'title': fm.get('title', rel.stem),
             'type': fm.get('type', 'unknown'),
-            'public': fm.get('public', False),
             'parent': fm.get('parent'),
         }
         nodes.append(node)
         path_to_node[str(rel)] = node
-
-        # Validate intents root
-        if str(rel) == '.cns/intents/index.md':
-            if fm.get('type') != 'intents_root':
-                intent_warnings.append({
-                    'path': str(rel),
-                    'message': '.cns/intents/index.md should have type: intents_root'
-                })
-            # Validate each intent entry
-            intents = fm.get('intents', [])
-            if not isinstance(intents, list):
-                intent_warnings.append({
-                    'path': str(rel),
-                    'message': 'intents[] should be an array'
-                })
-            else:
-                for i, intent in enumerate(intents):
-                    if isinstance(intent, dict):
-                        for field in ('id', 'category', 'summary', 'status'):
-                            if field not in intent:
-                                intent_warnings.append({
-                                    'path': str(rel),
-                                    'message': f'intents[{i}] missing "{field}" field'
-                                })
-                        valid_categories = ('feature', 'refactor', 'research', 'bug', 'exploration', 'thesis')
-                        if intent.get('category') not in valid_categories:
-                            intent_warnings.append({
-                                'path': str(rel),
-                                'message': f'intents[{i}] has invalid category "{intent.get("category")}" — must be one of {valid_categories}'
-                            })
-                        valid_statuses = ('pending', 'in_progress', 'completed', 'cancelled')
-                        if intent.get('status') not in valid_statuses:
-                            intent_warnings.append({
-                                'path': str(rel),
-                                'message': f'intents[{i}] has invalid status "{intent.get("status")}" — must be one of {valid_statuses}'
-                            })
-                    else:
-                        intent_warnings.append({
-                            'path': str(rel),
-                            'message': f'intents[{i}] should be a YAML object, found: {type(intent).__name__}'
-                        })
 
     # Build edges from parent field
     for node in nodes:
@@ -312,7 +265,6 @@ def build_graph(files: list[Path], root: Path) -> dict:
         'orphans': orphans,
         'cycles': cycles,
         'dangling_links': dangling_links,
-        'intent_warnings': intent_warnings,
     }
 
 
@@ -391,9 +343,6 @@ def main():
         print(f"Cycles detected: {graph['cycles']}")
     if graph['dangling_links']:
         print(f"Dangling parent links: {graph['dangling_links']}")
-    if graph['intent_warnings']:
-        for w in graph['intent_warnings']:
-            print(f"Intent warning [{w['path']}]: {w['message']}")
 
     # Write output
     cns_dir = ensure_cns_dir(root)

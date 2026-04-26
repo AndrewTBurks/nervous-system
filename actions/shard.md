@@ -1,13 +1,15 @@
 # Action: shard
 
-Parse a completed plan and parcel its contents into the appropriate index.md files throughout the codebase. Used when a plan finishes — its insights get distributed into the documents nearest the code they describe.
+Parse a source file and parcel its contents into the appropriate index.md files throughout the codebase. Commonly a plan file from a completed planning session, but the source can be any file containing decisions, context notes, or implementation details that should be distributed into the documents nearest the code they describe.
+
+**Scripts referenced:** `bubble.py`, `validate.py`, `graph.py`
 
 ---
 
 ## Behavior
 
-1. Read the plan file at `plan_path`.
-2. Extract all **decisions**, **context notes**, and **implementation details** from the plan.
+1. Read the source file at `source_path`.
+2. Extract all **decisions**, **context notes**, and **implementation details** from the source.
 3. For each piece of content:
    - Determine which directory/file it relates to in the codebase
    - Find the nearest index.md (or create one if it doesn't exist)
@@ -24,13 +26,13 @@ Parse a completed plan and parcel its contents into the appropriate index.md fil
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `plan_path` | string | Path to the completed plan file (e.g. `.hermes/plans/2026-04-25_feature-x.md`) |
+| `source_path` | string | Path to the source file to shard (e.g. `.hermes/plans/2026-04-25_feature-x.md` or any file with distributable content) |
 
 ---
 
-## Plan Structure Expected
+## Source File Structure
 
-Plans typically contain:
+The source file may contain sections like:
 
 ```
 ## Decisions Made
@@ -53,9 +55,9 @@ Each section maps to a different target in index.md.
 
 ## Mapping Content to index.md Files
 
-1. Parse the plan to identify which code units it affects.
+1. Parse the source file to identify which code units it affects.
 2. For each code unit, find its directory's index.md. If none exists, create one.
-3. Decisions go to `decisions[]` with `author: agent` and a reference to the plan in the summary.
+3. Decisions go to `decisions[]` with `author: agent` and a reference to the source in the summary.
 4. Context goes to the agent-authored body — the agent synthesizes a 1-3 sentence summary and appends it.
 5. Implementation details that describe a specific file get linked in the body's relevant section.
 
@@ -76,10 +78,10 @@ After shard:
 
 ## What Gets Sharded
 
-Not everything in a plan should be sharded. Guidelines:
+Not everything in a source file should be sharded. Guidelines:
 
-| Plan content | Sharded? | Destination |
-|-------------|---------|-------------|
+| Source content | Sharded? | Destination |
+|---------------|---------|-------------|
 | Architecture decision | Yes | Nearest index.md + `.cns/architecture.md` |
 | Design choice | Yes | Nearest index.md |
 | Implementation detail | Yes | Nearest index.md body |
@@ -91,13 +93,23 @@ Not everything in a plan should be sharded. Guidelines:
 
 ## Error Handling
 
-- Plan file not found: error, don't proceed
-- Code reference in plan doesn't match any existing directory: create a new index.md in that directory
-- Malformed plan: shard what's parseable, log what couldn't be parsed
+- Source file not found: error, don't proceed
+- Code reference in source doesn't match any existing directory: create a new index.md in that directory
+- Malformed source: shard what's parseable, log what couldn't be parsed
 
-## CNS Doc-Migration Shard Variant
+## CNS Doc-Migration Variant
 
-When migrating content from monolithic .md files into the CNS (e.g., consolidating ResearchPlan.md, EngineeringPlan.md into `.cns/research/index.md`, `.cns/architecture/index.md`, etc.), use this workflow instead of the plan-based shard above:
+This is a separate workflow from the standard `shard(plan_path)` action. Use it when consolidating legacy monolithic `.md` files (e.g. `ResearchPlan.md`, `EngineeringPlan.md`) into proper CNS nodes.
+
+**Scripts referenced:** `extract.py`, `validate.py`, `graph.py`
+
+### When to use this variant
+
+Standard shard: you have a plan file and want to distribute its decisions into existing index.md files.
+
+Migration variant: you have old docs with useful content you want to move into CNS, and the old files need to be deleted afterward with link cleanup.
+
+### Steps
 
 **Step 1 — Audit source content.** Read all source files, identify which CNS nodes need updates and what content goes where. List parity gaps.
 
@@ -109,12 +121,13 @@ When migrating content from monolithic .md files into the CNS (e.g., consolidati
 
 **Step 5 — Delete source files.** Remove the old monolithic .md files from the project root.
 
-**Step 6 — Clean dangling links immediately.** Any `.cns/*/index.md` file that linked to a now-deleted source file must be patched to remove those links. Run `grep -r "deleted-filename" .cns/` to find all dangling references.
+**Step 6 — Clean dangling links immediately.** Any `.cns/*/index.md` file that linked to a now-deleted source file must be patched to remove those links. Run `grep -r "deleted-filename" .cns/` or use `search.py` to find all dangling references.
 
 **Step 7 — Commit cleanup.** `git commit -m "fix: remove dangling links to deleted source docs from CNS nodes"` — this is the final commit confirming parity.
 
-**Key pitfalls discovered through trial and error:**
-- scripts/extract.py exists — graph.json is maintained via extract.py, not manually
-- Full rewrites (write_file) are safer than patches when source docs have duplicate section headers — patch finds multiple matches and errors out
-- Deleting source files without immediately cleaning dangling links leaves the CNS in a broken state (orphan detection will catch this when running extract.py)
-- Always commit before starting — provides a safe restore point if CNS content gets mangled during migration
+### Key pitfalls
+
+- `extract.py` maintains graph.json — do not edit graph.json manually.
+- Full rewrites (write_file) are safer than patches when source docs have duplicate section headers — patch finds multiple matches and errors out.
+- Deleting source files without immediately cleaning dangling links leaves the CNS in a broken state (orphan detection will catch this when running extract.py).
+- Always commit before starting — provides a safe restore point if CNS content gets mangled during migration.

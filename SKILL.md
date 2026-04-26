@@ -60,9 +60,9 @@ Please share what you know:
 - `.cns/architecture/index.md` — system architecture
 - `.cns/design/index.md` — design language, conventions
 - `.cns/product/index.md` — audience, goals, roadmap direction
-- `.cns/intents/index.md` — intent registry (empty `decisions: []`, `intents: []`)
+- `.cns/intent.md` — planned work (plain text, starts empty or with initial items)
 
-**Step 3 — Link architecture/design/product** to `.cns/index.md` via `parent` fields. Set `public: true` on all of them.
+**Step 3 — Link architecture/design/product** to `.cns/index.md` via `parent` fields.
 
 **Step 4 — Run `scripts/extract.py`** to build the initial `graph.json`.
 
@@ -85,7 +85,9 @@ If `.cns/` exists but the codebase is empty or nearly empty:
 
 **Distributed graph** — Each index.md is a node. Edges are defined by the `parent` field in frontmatter. The graph is traversed upward during planning.
 
-**Central nervous system (.cns/)** — A folder at the project root that holds project-level knowledge. This is the root of the bubble chain.
+**Central nervous system (.cns/)** — A folder at the project root that holds project-level knowledge. This is the root of the bubble chain. Contains cross-cutting concerns: architecture, design language, product goals, research background.
+
+**Peripheral nervous system** — index.md files interleaved throughout the codebase (e.g. `src/engine/index.md`, `src/auth/index.md`). These document specific modules and components. They bubble upward through their `parent` chain, eventually reaching `.cns/index.md`. The PNS is the sensory layer — it captures what each part of the codebase actually does and why.
 
 **Human zone** — The `human_notes` field in frontmatter is human-owned. The agent never modifies this field.
 
@@ -95,29 +97,43 @@ If `.cns/` exists but the codebase is empty or nearly empty:
 
 **Reconciliation** — The agent reads dirty documents, updates code to honor human intent, shards understanding back into documents, bubbles summaries upward, prunes stale decisions, marks `clean`.
 
-**Bubbling** — After any write, the agent ensures the parent is consistent with the current layer. Only `public: true` nodes propagate upward.
+**Bubbling** — After any write, the agent ensures the parent is consistent with the current layer. Significant changes propagate upward through the parent chain to `.cns/index.md`.
 
 ---
 
 ## Directory Structure
 
+The nervous system has two parts:
+
+**.cns/ — Central nervous system** (project root): cross-cutting knowledge, architecture, design, product goals.
+
+**PNS — Peripheral nervous system** (interleaved with code): module-level documents that bubble upward.
+
 ```
 project/
   .cns/                    # central nervous system
     index.md               # project-level context
+    intent.md              # upcoming planned work (plain text)
+    log.md                 # activity log (plain text)
     graph.json             # extracted adjacency graph
-    log.md                 # agent activity log
     architecture/          # system architecture, key tradeoffs
       index.md
-    design/                # design language, tokens, conventions
+    design/                # design language, conventions
       index.md
-    product/               # audience, users, goals, initiatives
+    product/               # audience, users, goals
       index.md
-    intents/               # in-flight work, planned features, open questions
-      index.md             # intents root — captures ALL pending/in_progress intents
+    research/              # background research, related work
+      index.md
+  src/
+    engine/
+      index.md             # peripheral: engine module
+      engine.ts
+    auth/
+      index.md             # peripheral: auth module
+      auth.ts
   components/
     Button/
-      index.md             # component-level context
+      index.md             # peripheral: component
       button.tsx
   services/
     auth/
@@ -125,7 +141,31 @@ project/
       auth.ts
 ```
 
-**Intents** live in `.cns/intents/index.md` — a flat, project-wide intent registry. This file is the single source of truth for in-flight work across all modules. Individual module index.md files may reference intents via `links[]`, but the canonical intent record is always in `.cns/intents/`.
+## Intents
+
+Planned work lives in `.cns/intent.md` — a plain text file at the project level. Recent work is in `.cns/log.md`. No frontmatter, no schema.
+
+```
+.cns/
+  index.md      # project context
+  intent.md     # upcoming planned work
+  log.md        # recent work done
+  graph.json
+  architecture/
+  design/
+  ...
+```
+
+**Why plain files?**
+
+- No schema to maintain — just prose
+- Immediately readable in a new session without running any scripts
+- `intent.md` shows what needs doing; `log.md` shows what was done
+- No ID tracking overhead — just sections and bullets
+
+**`intent.md`** is the single source of truth for all planned work. Organize by area or priority. Keep it accurate — stale items should be removed or moved to log.
+
+**`log.md`** records completed work with timestamps. After each session, append what was done. Easy to reconstruct context when resuming.
 
 ---
 
@@ -137,10 +177,8 @@ Key fields:
 - `title` (required): Human-readable name
 - `type`: component | service | module | package | project
 - `parent`: path to parent index.md (relative to project root)
-- `public`: whether this node bubbles upward (default: false)
 - `links[]`: stable cross-references
 - `decisions[]`: decision history — id, date, author, summary
-- `intents[]`: in-flight work — feature, refactor, research, bug, exploration
 - `human_notes`: **human's safe zone** — agent never modifies this
 - `status`: clean | dirty | reconciling
 - `last_reconciled`: ISO date
@@ -164,14 +202,13 @@ clean ──────► dirty ──────► reconciling ────
 
 ## Propagation Rules
 
-| Change type | public: true | public: false |
-|-------------|--------------|----------------|
-| Public API change | Bubbles | Stays local |
-| Significant decision | Bubbles | Stays local |
-| Intent added/changed | Bubbles (via intents/ root) | Stays local |
-| Minor detail | Stays local | Stays local |
+The bubble always proceeds all the way to `.cns/index.md`. What changes at each level depends on whether the content is externally relevant:
 
-Only public interface changes propagate upward. Intent status changes (pending → in_progress → completed) always bubble to `.cns/intents/index.md`.
+| Change type | What happens |
+|-------------|--------------|
+| Public API change | Bubbles; significant decisions absorbed by parent |
+| Significant decision | Bubbles; absorbed by parent |
+| Minor detail | Stays local; parent's agent body not updated |
 
 ---
 
@@ -183,7 +220,7 @@ During reconcile, each `decisions[]` entry is checked: does the current code sti
 
 ## Bubble Consistency Rule
 
-After every write to an index.md, the agent checks: is the parent layer still consistent with this layer? If the current layer changed a public API or made a significant decision, the agent synthesizes a 1-3 sentence summary and inserts it into the parent's agent-authored body. This cascades to `.cns/index.md`.
+After every write to an index.md, the agent checks: is the parent layer still consistent with this layer? If this layer changed something externally relevant (a public API, a significant decision), the agent synthesizes a 1-3 sentence summary and inserts it into the parent's agent-authored body. This cascades to `.cns/index.md`. Use `bubble.py` to analyze the chain before deciding what to write.
 
 ---
 
@@ -191,23 +228,22 @@ After every write to an index.md, the agent checks: is the parent layer still co
 
 Each action is defined in its own file under `actions/`.
 
-| Action | File | Description |
-|--------|------|-------------|
-| `capture(path, content)` | `actions/capture.md` | Append decision to decisions[] |
-| `capture_intent(path, category, summary)` | `actions/capture.md` | Add intent to intents[] or .cns/intents/index.md |
-| `read(path)` | `actions/read.md` | Read index.md, return frontmatter + body |
-| `traverse(root)` | `actions/traverse.md` | Walk graph, build planning context |
-| `shard(plan_path)` | `actions/shard.md` | Parcel completed plan into index.md files |
-| `reconcile(path)` | `actions/reconcile.md` | Full reconcile algorithm |
-| `bubble(path)` | `actions/bubble.md` + `scripts/bubble.py` | Show bubble chain for a node — LLM reads and decides what to write |
-| `audit(path, depth?)` | `actions/audit.md` | Audit node + adjacent nodes against actual code — detect stale docs, broken links, undocumented code |
-| `extract(project_root)` | `scripts/extract.py` | Build .cns/graph.json from directory tree |
-| `validate(project_root)` | `scripts/validate.py` | Frontmatter validator — run after every CNS write |
-| `search(project_root, pattern, ...)` | `scripts/search.py` | Grep-like search across CNS content |
-| `query(project_root, ...)` | `scripts/query.py` | List/filter nodes by type, status, author, date |
-| `graph(project_root, ...)` | `scripts/graph.py` | Build, check, or dump graph structure |
-| `link(project_root, node?, ...)` | `scripts/link.py` | Show outgoing links + incoming backlinks for a node or all nodes |
-| `move(project_root, old, new)` | `scripts/move.py` | Dry-run move with link rebasing — `--execute` to run |
+| Action | File | Description | Scripts |
+|--------|------|-------------|---------|
+| `capture(path, content)` | `actions/capture.md` | Append decision to decisions[] | none |
+| `read(path)` | `actions/read.md` | Read index.md, return frontmatter + body | none |
+| `traverse(root)` | `actions/traverse.md` | Walk graph, build planning context | `extract.py`, `graph.py` |
+| `shard(source_path)` | `actions/shard.md` | Parcel source file content into index.md files | `bubble.py`, `validate.py`, `graph.py` |
+| `reconcile(path)` | `actions/reconcile.md` | Full reconcile algorithm | `validate.py`, `graph.py` |
+| `bubble(path)` | `actions/bubble.md` | Show bubble chain — LLM decides what to write | `bubble.py` |
+| `audit(path, depth?)` | `actions/audit.md` | Audit node + adjacent nodes against actual code | `graph.py`, `link.py` |
+| `extract(project_root)` | `scripts/extract.py` | Build .cns/graph.json from directory tree | — |
+| `validate(project_root)` | `scripts/validate.py` | Frontmatter validator — run after every CNS write | — |
+| `search(project_root, pattern, ...)` | `scripts/search.py` | Grep-like search across CNS content | — |
+| `query(project_root, ...)` | `scripts/query.py` | List/filter nodes by type, status, author, date | — |
+| `graph(project_root, ...)` | `scripts/graph.py` | Build, check, or dump graph structure | — |
+| `link(project_root, node?, ...)` | `scripts/link.py` | Show outgoing links + incoming backlinks | — |
+| `move(project_root, old, new)` | `scripts/move.py` | Dry-run move with link rebasing — `--execute` to run | — |
 
 ---
 
@@ -229,8 +265,7 @@ The validator checks:
 1. Valid YAML frontmatter (--- delimited) in every `.cns/*.md` file
 2. Required fields: `title`, `type`
 3. Each `decisions[]` entry has `id:`, `date:`, `author:`, `summary:`
-4. Each `intents[]` entry has `id:`, `category:`, `summary:`, `status:`
-5. No duplicate decision IDs within a file
+4. No duplicate decision IDs within a file
 6. All `links[]` paths point to existing files
 
 ---
@@ -259,8 +294,8 @@ Exit code 1 if cycles or dangling links exist (actionable signal).
 {
   "generated": "2026-04-25T14:30:00Z",
   "nodes": [
-    { "path": ".cns/research/index.md", "title": "Research", "type": "project", "public": true },
-    { "path": ".cns/architecture/index.md", "title": "Architecture", "type": "project", "public": true }
+    { "path": ".cns/research/index.md", "title": "Research", "type": "project" },
+    { "path": ".cns/architecture/index.md", "title": "Architecture", "type": "project" }
   ],
   "edges": [
     { "from": ".cns/research/index.md", "to": ".cns/index.md", "label": "parent" },
@@ -282,15 +317,14 @@ Validate manually: no cycles, no orphans, no dangling links. After any CNS struc
 {
   "generated": "2026-04-25T14:30:00Z",
   "nodes": [
-    { "path": "components/Button/index.md", "title": "Button Component", "type": "component", "public": true }
+    { "path": "components/Button/index.md", "title": "Button Component", "type": "component" }
   ],
   "edges": [
     { "from": "components/Button/index.md", "to": "ui/button/index.md", "label": "parent" }
   ],
   "orphans": [],
   "cycles": [],
-  "dangling_links": [],
-  "intent_warnings": []
+  "dangling_links": []
 }
 ```
 

@@ -2,6 +2,8 @@
 
 Audit a CNS node and its adjacent nodes against the actual codebase. Detects stale docs, broken links, undocumented code, and decisions that have drifted from implementation.
 
+**Scripts referenced:** `graph.py`, `link.py`
+
 ---
 
 ## Behavior
@@ -31,6 +33,11 @@ For the starting node and each adjacent node, run these checks:
 - If the doc describes a function/class/module name, does it still exist in code?
 - If a `status: deprecated` decision is listed, is the deprecated code actually still there?
 - If a `decisions[]` item says "implemented: true", does the code compile/run?
+
+**Pruning checks (during reconcile):**
+- Each `decisions[]` entry — does the code it refers to still exist? Has the approach it describes changed?
+- If the answer is no: the decision is deleted, not archived. Stale decisions are noise.
+- `links[]` paths that point to deleted files are removed from the array.
 
 **Coverage checks:**
 - For each subdirectory or module represented by a child node, is there a corresponding code directory?
@@ -118,9 +125,9 @@ audit("components/Button/index.md", depth=2)
 ## What Audit Is Not
 
 - Audit does NOT modify files — it only reads and reports.
-- Audit does NOT check frontmatter schema (use `validate` for that).
+- Audit does NOT check frontmatter schema (use `validate.py` for that).
 - Audit does NOT reconcile human edits (use `reconcile` for that).
-- Audit does NOT check graph integrity (use `graph --check` for that).
+- Audit does NOT check graph integrity (use `graph.py --check` for that).
 
 Audit is purely a doc-to-reality consistency checker.
 

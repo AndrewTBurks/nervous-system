@@ -6,9 +6,7 @@ Checks every .md file under .cns/ for:
   1. Valid YAML frontmatter (--- delimited)
   2. Required fields: title, type
   3. decisions[] entries: each has id:, date:, author:, summary:
-  4. intents[] entries: each has id:, category:, summary:, status:
-  5. No duplicate decision IDs within a file
-  6. All links[] point to existing files
+  4. All links[] point to existing files
 
 Run after any CNS write:
     python3 ~/.hermes/skills/nervous-system/scripts/validate.py /path/to/project
@@ -79,25 +77,6 @@ def validate_frontmatter(rel_path: Path, content: str, root: Path) -> None:
                     fatal(f"duplicate decision id '{rid}'")
                 seen_ids.add(rid)
 
-    # intents[] entries
-    intents = fm.get("intents", [])
-    if not isinstance(intents, list):
-        fatal("'intents' must be a list")
-    else:
-        seen_ids: set[str] = set()
-        for i, entry in enumerate(intents):
-            if not isinstance(entry, dict):
-                fatal(f"intents[{i}] is not a dict")
-                continue
-            for field in ("id", "category", "summary", "status"):
-                if field not in entry:
-                    fatal(f"intents[{i}] missing '{field}'")
-            if "id" in entry:
-                rid = str(entry["id"])
-                if rid in seen_ids:
-                    fatal(f"duplicate intent id '{rid}'")
-                seen_ids.add(rid)
-
     # links[] — paths are relative to project root (where .cns/ lives)
     links = fm.get("links", [])
     if not isinstance(links, list):
@@ -121,7 +100,7 @@ def walk_cns(root: Path) -> int:
         return 1
 
     # Files that intentionally have no frontmatter
-    skip_names = {"log.md"}
+    skip_names = {"log.md", "intent.md"}
 
     md_files = sorted(cns.rglob("*.md"))
     if not md_files:

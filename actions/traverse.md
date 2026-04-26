@@ -2,6 +2,8 @@
 
 Walk the index.md graph starting at a root node, collecting context from all reachable documents. Used at the start of planning to gather full project context.
 
+**Scripts referenced:** `extract.py`, `graph.py`
+
 ---
 
 ## Behavior
@@ -9,8 +11,8 @@ Walk the index.md graph starting at a root node, collecting context from all rea
 1. Load `.cns/graph.json` (produced by extract.py). If it doesn't exist, run `extract.py` first.
 2. Starting from `root` (typically `.cns/index.md` or a specific subdirectory), walk upward and outward through parent edges.
 3. For each reachable node, call `read()` to get frontmatter and body.
-4. Assemble a context summary: all decisions, human_notes, links, intents[], and a synthesis of each node's body.
-5. Additionally load `.cns/intents/index.md` if it exists and append all pending/in_progress intents to the context.
+4. Assemble a context summary: all decisions, human_notes, links, and a synthesis of each node's body.
+5. Additionally load `.cns/intent.md` if it exists and append its contents to the context.
 6. Check for cycles in the graph (from graph.json). If found, warn in the context summary but continue.
 7. Return the assembled context.
 
@@ -33,24 +35,12 @@ Walk the index.md graph starting at a root node, collecting context from all rea
       "path": "services/auth/index.md",
       "title": "Auth Service",
       "type": "service",
-      "public": true,
       "decisions": [...],
-      "intents": [...],
       "human_notes": "...",
       "body_summary": "Handles JWT issuance and validation..."
     }
   ],
-  "intents": [
-    {
-      "id": "INTENT-001",
-      "category": "feature",
-      "summary": "Add OAuth2 refresh token rotation",
-      "status": "in_progress",
-      "author": "agent",
-      "date": "2026-04-20",
-      "links": [{"path": "services/auth/index.md"}]
-    }
-  ],
+  "intent_md": "## Upcoming\n- Add OAuth2 refresh token rotation\n- Investigate CRDT approach for concurrent stub editing",
   "edges": [
     { "from": "services/auth/index.md", "to": "backend/index.md", "label": "parent" }
   ],
@@ -82,7 +72,7 @@ traverse(".cns/index.md")
 This gives the agent:
 - Project-level decisions and human notes
 - A map of all document nodes and their relationships
-- **All pending and in-progress intents** from `.cns/intents/index.md` — so the agent knows what is already planned or underway before proposing new work
+- **All planned work** from `.cns/intent.md` — so the agent knows what is already planned or underway before proposing new work
 - Any warnings about cycles or orphans
 
 From this, the agent knows where to look for relevant context when planning a feature.

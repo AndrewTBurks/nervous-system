@@ -2,6 +2,8 @@
 
 Read the index.md at the given path and return both its structured frontmatter and its agent-authored body.
 
+**Scripts referenced:** none (pure file read; no script needed)
+
 ---
 
 ## Behavior
@@ -22,7 +24,6 @@ Read the index.md at the given path and return both its structured frontmatter a
     "title": "Button Component",
     "type": "component",
     "parent": "ui/button",
-    "public": true,
     "links": [
       { "id": "auth-token-handling", "path": "services/auth/index.md" }
     ],

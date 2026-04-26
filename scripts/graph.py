@@ -55,17 +55,16 @@ def load_frontmatter(md_path: Path) -> dict[str, Any]:
 
 
 def build_graph(root: Path) -> dict:
-    """Walk .cns/, parse all nodes, build adjacency list."""
+    """Walk entire project directory tree, parse all index.md files, build adjacency list."""
     root = root.resolve()  # normalize to absolute — relative_to() requires it
-    cns = root / ".cns"
     nodes: dict[str, dict] = {}
     edges: list[dict] = []
     orphans: list[str] = []
     cycles: list[list[str]] = []
 
-    # Load all nodes
-    for md_path in sorted(cns.rglob("*.md")):
-        if md_path.name == "log.md":
+    # Load all nodes — walk entire project tree, not just .cns/
+    for md_path in sorted(root.rglob("index.md")):
+        if md_path.name in ("log.md", "intent.md"):
             continue
         rel = str(md_path.relative_to(root))
         fm = load_frontmatter(md_path)
@@ -75,11 +74,9 @@ def build_graph(root: Path) -> dict:
             "path": rel,
             "title": fm.get("title", ""),
             "type": fm.get("type", ""),
-            "public": fm.get("public", False),
             "parent": fm.get("parent"),
             "status": fm.get("status", ""),
             "decision_count": len(fm.get("decisions", [])),
-            "intent_count": len(fm.get("intents", [])),
         }
 
     # Build a reverse index: parent_path -> [child_paths]

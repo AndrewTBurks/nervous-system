@@ -34,15 +34,7 @@ Categorizes the type of code unit this document describes.
 
 Path to the parent index.md file. Used to build the bubble chain. If omitted, this document is treated as a root node (but see `.cns/index.md` for project-level root).
 
----
-
-### `public`
-
-**Type:** boolean  
-**Default:** `false`  
-**Example:** `true`
-
-Whether this node participates in the bubble chain. Only `public: true` nodes propagate changes upward to their parent.
+**PNS nodes** (peripheral nervous system — index.md files interleaved with code) always have a `parent` pointing toward `.cns/index.md`. The parent chain is what enables bubbling.
 
 ---
 
@@ -62,9 +54,9 @@ Stable cross-references to other index.md files or external resources. The `id` 
 
 ---
 
-### `decisions`
+### `decisions[]`
 
-**Type:** array of decision objects  
+**Type:** array of decision objects
 **Example:**
 ```yaml
 decisions:
@@ -88,57 +80,6 @@ A historical record of decisions made about this part of the codebase. Each entr
 | `date` | string | ISO 8601 date |
 | `author` | `human` \| `agent` | Who made the decision |
 | `summary` | string | Plain-text description |
-
----
-
-### `intents[]`
-
-**Type:** array of intent objects  
-**Example:**
-```yaml
-intents:
-  - id: INTENT-001
-    category: feature
-    summary: Add CSV export to workflow results
-    status: in_progress
-    author: human
-    date: 2026-04-20
-    links:
-      - path: src/engine/index.md
-  - id: INTENT-002
-    category: exploration
-    summary: Investigate using CRDTs for concurrent stub editing
-    status: pending
-    author: agent
-    date: 2026-04-25
-```
-
-In-flight work, planned features, research directions, and open questions. Intents are not code — they are the space between what's done and what's envisioned. Each entry is pruned during reconcile if its premise no longer applies or the work is complete.
-
-**Intent object fields:**
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `id` | string | Stable identifier, e.g. `INTENT-001` |
-| `category` | enum | One of the 5 categories (see below) |
-| `summary` | string | Plain-text description of the intent |
-| `status` | enum | `pending` \| `in_progress` \| `completed` \| `cancelled` |
-| `author` | `human` \| `agent` | Who recorded the intent |
-| `date` | string | ISO 8601 date when recorded |
-| `links[]` | array | Optional paths to related index.md files |
-
-**Intent categories:**
-
-| Category | Description |
-|----------|-------------|
-| `feature` | Planned new capability or user-facing change |
-| `refactor` | Planned code restructuring without behavior change |
-| `research` | Investigation, spikes, proof-of-concepts |
-| `bug` | Known issue being tracked or planned to fix |
-| `exploration` | Open-ended idea being explored, not yet committed |
-| `thesis` | Dissertation writing — composing chapters, integrating results |
-
-**Status lifecycle:** `pending` → `in_progress` → `completed`. Any stage can move to `cancelled` if the intent is abandoned or superseded.
 
 ---
 
@@ -190,7 +131,6 @@ ISO 8601 date of the last time reconciliation completed for this document.
 title: Auth Service
 type: service
 parent: backend/index.md
-public: true
 links:
   - id: session-design
     path: services/sessions/index.md
@@ -225,10 +165,8 @@ without querying the database.
 | `title` | string | yes | — |
 | `type` | enum | yes | — |
 | `parent` | string | no | null |
-| `public` | boolean | no | false |
 | `links` | array | no | [] |
 | `decisions` | array | no | [] |
-| `intents` | array | no | [] |
 | `human_notes` | string | no | "" |
 | `status` | enum | no | clean |
 | `last_reconciled` | string | no | null |
