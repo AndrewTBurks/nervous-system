@@ -1,130 +1,47 @@
-# Frontmatter Schema Reference
+# Schema & Reference
 
-This is a human-readable reference for the frontmatter fields used in nervous-system index.md files. All fields are optional unless noted.
-
----
-
-## Required Fields
-
-### `title`
-
-**Type:** string  
-**Example:** `Button Component`
-
-Human-readable name of the entity this document describes.
+Human-readable reference for frontmatter, graph structure, validation, and propagation rules.
 
 ---
 
-### `type`
+## Frontmatter Fields
 
-**Type:** enum  
-**Values:** `component` | `service` | `module` | `package` | `project`  
-**Example:** `component`
+### Required
 
-Categorizes the type of code unit this document describes.
+| Field | Type | Description |
+|-------|------|-------------|
+| `title` | string | Human-readable name |
+| `type` | enum | `component` \| `service` \| `module` \| `package` \| `project` |
 
----
+### Optional
 
-## Optional Fields
+| Field | Type | Description |
+|-------|------|-------------|
+| `parent` | string (path) | Parent index.md for bubble chain |
+| `links[]` | array | Cross-references to other nodes |
+| `decisions[]` | array | Decision history (see below) |
+|| `human_notes` | string | **Human intent provenance** — agent reads, may append, never rewrites or removes |
+| `status` | enum | `clean` \| `dirty` \| `reconciling` |
+| `last_reconciled` | string (ISO date) | Last reconcile completion |
 
-### `parent`
+### decisions[] format
 
-**Type:** string (path)  
-**Example:** `ui/button`
-
-Path to the parent index.md file. Used to build the bubble chain. If omitted, this document is treated as a root node (but see `.cns/index.md` for project-level root).
-
-**PNS nodes** (peripheral nervous system — index.md files interleaved with code) always have a `parent` pointing toward `.cns/index.md`. The parent chain is what enables bubbling.
-
----
-
-### `links[]`
-
-**Type:** array of objects  
-**Example:**
-```yaml
-links:
-  - id: auth-token-handling
-    path: services/auth/index.md
-  - id: design-system-button
-    path: design-system/components/button.md
-```
-
-Stable cross-references to other index.md files or external resources. The `id` is a local identifier used to reference this link elsewhere.
-
----
-
-### `decisions[]`
-
-**Type:** array of decision objects
-**Example:**
 ```yaml
 decisions:
   - id: DEC-001
     date: 2025-04-10
     author: human
     summary: Chose JWT over sessions for stateless auth
-  - id: DEC-002
-    date: 2025-04-15
-    author: agent
-    summary: Refresh token rotation added to auth service
 ```
 
-A historical record of decisions made about this part of the codebase. Each entry is pruned during reconcile if its premise no longer holds.
+| Field | Description |
+|-------|-------------|
+| `id` | Stable identifier, e.g. `DEC-001` |
+| `date` | ISO 8601 date |
+| `author` | `human` or `agent` |
+| `summary` | Plain-text description |
 
-**Decision object fields:**
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `id` | string | Stable identifier, e.g. `DEC-001` |
-| `date` | string | ISO 8601 date |
-| `author` | `human` \| `agent` | Who made the decision |
-| `summary` | string | Plain-text description |
-
----
-
-### `human_notes`
-
-**Type:** string (multiline YAML)  
-**Example:**
-```yaml
-human_notes: |
-  The border-radius here is intentional — it's 4px to match the design
-  system token. Do not change without checking design.md first.
-
-  This component is scheduled for redesign in Q3.
-```
-
-**The human's safe zone.** The agent reads this field to understand human intent but never modifies it. Treat this as opaque prose — the agent does not parse or structure the content inside it.
-
-When this field is updated, set `status: dirty` to trigger reconciliation.
-
----
-
-### `status`
-
-**Type:** enum  
-**Default:** `clean`  
-**Values:** `clean` | `dirty` | `reconciling`
-
-The reconciliation state of this document.
-
-- `clean`: Document is consistent with code and human intent
-- `dirty`: Human intent has changed; agent needs to reconcile
-- `reconciling`: Agent is currently working on this document
-
----
-
-### `last_reconciled`
-
-**Type:** string (ISO date)  
-**Example:** `2025-04-25`
-
-ISO 8601 date of the last time reconciliation completed for this document.
-
----
-
-## Complete Example
+### Complete example
 
 ```yaml
 ---
@@ -139,22 +56,110 @@ decisions:
     date: 2025-04-10
     author: human
     summary: Chose JWT over sessions for stateless auth
-  - id: DEC-002
-    date: 2025-04-15
-    author: agent
-    summary: Refresh token rotation added
 human_notes: |
   We agreed to revisit the token expiry policy after the beta launch.
-  Do not extend expiry beyond 24h without checking with the security team.
 status: clean
 last_reconciled: 2025-04-25
 ---
 
-This service handles authentication for the application. It exposes a
-REST API consumed by the frontend and issues JWTs on successful login.
-Token validation is stateless — the service verifies signatures locally
-without querying the database.
+This service handles authentication for the application.
 ```
+
+---
+
+## Status Lifecycle
+
+```
+clean ─────▶ dirty ─────▶ reconciling ─────▶ clean
+     (human edits)    (agent working)    (done)
+```
+
+The agent detects when a document's `human_notes` or agent-authored body has changed relative to its last known state. The `status: dirty` field may also be set explicitly if needed.
+
+---
+
+## Propagation Rules
+
+The bubble always proceeds all the way to `.cns/index.md`. What changes at each level depends on external relevance:
+
+| Change type | What happens |
+|-------------|--------------|
+| Public API change | Bubbles; significant decisions absorbed by parent |
+| Significant decision | Bubbles; absorbed by parent |
+| Minor detail | Stays local; parent's agent body not updated |
+
+---
+
+## Pruning Rules
+
+During reconcile, each `decisions[]` entry is checked: does the current code still reflect this decision? If not, it is removed. Stale decisions are noise — they are deleted, not archived.
+
+---
+
+## Bubble Consistency Rule
+
+After every write to an index.md, the agent checks: is the parent layer still consistent with this layer? If this layer changed something externally relevant (a public API, a significant decision), the agent synthesizes a 1–3 sentence summary and inserts it into the parent's agent-authored body. This cascades to `.cns/index.md`. Use `bubble.py` to analyze the chain before deciding what to write.
+
+---
+
+## graph.json Format
+
+```json
+{
+  "generated": "2026-04-25T14:30:00Z",
+  "nodes": [
+    { "path": "components/Button/index.md", "title": "Button Component", "type": "component" }
+  ],
+  "edges": [
+    { "from": "components/Button/index.md", "to": "ui/button/index.md", "label": "parent" }
+  ],
+  "orphans": [],
+  "cycles": [],
+  "dangling_links": []
+}
+```
+
+Run `scripts/extract.py` to build `.cns/graph.json` from the directory tree. Re-run after any structural change (adding/removing nodes, updating links).
+
+---
+
+## log.md Format
+
+```markdown
+## 2026-04-25
+
+### 14:30 — reconcile
+- components/Button/index.md: reconciled, status -> clean
+- bubbled to ui/button/index.md
+- pruned: DEC-003 (feature removed)
+
+### 14:25 — capture
+- services/auth/index.md: added DEC-007 (author: agent)
+
+### 14:20 — shard
+- plan: task-17-spatial-provenance.md
+- sharded into 3 index.md files
+```
+
+---
+
+## Validation
+
+After any CNS write, run:
+
+```bash
+python3 ~/.hermes/skills/nervous-system/scripts/validate.py /path/to/project
+python3 ~/.hermes/skills/nervous-system/scripts/graph.py /path/to/project --check
+```
+
+Exit code 0 = pass, 1 = fail.
+
+The validator checks:
+1. Valid YAML frontmatter (`---` delimited) in every `.cns/*.md` file
+2. Required fields: `title`, `type`
+3. Each `decisions[]` entry has `id:`, `date:`, `author:`, `summary:`
+4. No duplicate decision IDs within a file
+5. All `links[]` paths point to existing files
 
 ---
 
