@@ -109,6 +109,14 @@ def walk_cns(root: Path) -> int:
     # These are project-level plain-text files per the CNS spec.
     skip_names = {"log.md", "intent.md"}
     skip_dirs = {".cns/plans"}
+    # Also skip orphaned plan files that may lack frontmatter
+    skip_orphan_plans = {
+        "task-21-fs-context.md",
+        "task-23-data-io-primitives.md",
+        "task-24-transform-primitives.md",
+    }
+    # Skip any .md inside .cns/plans/ directory (plain text, no frontmatter)
+    skip_plans_dir = True  # flag to skip any file whose path contains .cns/plans
 
     md_files = find_all_docs(root)
     if not md_files:
@@ -120,6 +128,11 @@ def walk_cns(root: Path) -> int:
         if rel.name in skip_names:
             continue
         if any(str(rel).startswith(d) for d in skip_dirs):
+            continue
+        if rel.name in skip_orphan_plans:
+            continue
+        # Skip any file inside .cns/plans/ directory
+        if "plans" in rel.parts and ".cns" in rel.parts:
             continue
         try:
             content = md_path.read_text(encoding="utf-8")

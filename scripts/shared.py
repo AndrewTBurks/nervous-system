@@ -117,6 +117,11 @@ def find_all_docs(root: Path) -> list[Path]:
     for p in sorted(cns.rglob("*.md")):
         if p.name in ("log.md", "intent.md"):
             continue
+        # Skip .cns/plans/ and .cns/pns/ — ephemeral plans and deprecated peripheral nodes (plain text, no frontmatter)
+        if "plans" in p.parts and ".cns" in p.parts:
+            continue
+        if "pns" in p.parts and ".cns" in p.parts:
+            continue
         rp = p.resolve()
         if rp not in seen:
             seen.add(rp)
