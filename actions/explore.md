@@ -18,7 +18,7 @@ The human reads or updates the central knowledge nodes through conversation with
 ```bash
 python3 ~/.hermes/skills/nervous-system/scripts/extract.py <project_root>
 ```
-A stale `graph.json` produces stale traversal context. Run this before every session.
+A stale `graph.json` produces stale traversal context. Run this before every session. If the session makes structural changes (new nodes, moved files), re-run `extract.py` before the next `traverse`, `plan`, or `execute-task` operation.
 
 **1. Read relevant nodes**
 Agent reads the central node(s) the human is asking about.
@@ -40,8 +40,7 @@ Agent pushes summaries up the parent chain to `.cns/index.md`.
 
 **7. Commit (if modified)**
 ```bash
-git add -A
-git commit -m "docs(cns): update {architecture|design|product|research} from discussion"
+git add -A && git commit -m "docs(cns): update {architecture|design|product|research} from discussion"
 ```
 
 ## Notes

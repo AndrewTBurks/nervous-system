@@ -128,6 +128,8 @@ def find_all_docs(root: Path) -> list[Path]:
             docs.append(p)
 
     for p in sorted(root.rglob("index.md")):
+        if "node_modules" in p.parts:
+            continue
         rp = p.resolve()
         if rp not in seen:
             seen.add(rp)

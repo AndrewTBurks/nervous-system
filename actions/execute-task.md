@@ -23,7 +23,7 @@ intent.md → plan → implement → test → commit → shard → bubble → va
 ```bash
 python3 ~/.hermes/skills/nervous-system/scripts/extract.py <project_root>
 ```
-A stale `graph.json` produces stale traversal context. Run this before every session.
+A stale `graph.json` produces stale traversal context. Run this before every session. If the session makes structural changes (new nodes, moved files), re-run `extract.py` before the next `traverse`, `plan`, or `execute-task` operation.
 
 **1. Read intent**
 Read `.cns/intent.md`. Find the first uncompleted task matching `task_id` or the next uncompleted task if `task_id` is omitted. Do not skip ahead.
@@ -178,6 +178,8 @@ An agent running this pipeline should not need to hunt through separate action f
    - **Implementation Notes** → synthesize 1–3 sentences, append to agent-authored body.
    - **Files Changed** → append to `links[]` with `id` and `path`.
 5. Delete the plan file — its content now lives in the graph.
+
+**Plan lifecycle:** Plans are created by `plan()`, executed by `execute-task()`, then deleted by `shard()`. If shard fails, the plan file remains — retry by running `execute-task` on the same task. Orphaned plans (never executed) remain in `.cns/plans/` until manually deleted.
 
 ### bubble(path)
 
