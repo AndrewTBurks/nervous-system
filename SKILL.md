@@ -261,15 +261,7 @@ This avoids the failure mode of presenting a full 20-question brief when 18 of t
 
 All central nodes are linked to `.cns/index.md` via `parent` fields.
 
-## Session Reference Library
 
-| File | Purpose |
-|------|---------|
-| `references/site-astro-bio-workflow.md` | Landing page multi-role bio text workflow: research statement extraction from thesis codebase, proprietary work Q&A protocol, Andrew's ordering preferences (Epsilon before PhD), build verification pattern |
-| `references/site-astro.md` | site-astro project notes: CNS structure, bootstrap recovery rule, overdrive timeout rule, image performance debugging (feDisplacementMap compositor breakage, box-shadow repaint, Astro class prop forwarding, dark screenshot visibility) |
-| `references/displayframe-filters.md` | Current DisplayFrame filter chain: barrel (GPU-cached blur+colorMatrix+composite, no displacement), crt-noise (static feTurbulence). Why feDisplacementMap was removed (June 2026), class-forwarding requirement, where CRT stays vs. where it is killed |
-| `references/site-astro-essay-interview.md` | REMOVED — interview Q&A lives in `.cns/intent` in the project, not in the skill. When mining transcript for essay content, parse `~/.hermes/all-user-messages-last48h.txt` using SESSION markers + `====` separator. See message extraction pitfall under execute-mode + subagent-driven-development. |
-| `references/site-astro-taxonomy.md` | Taxonomy vs folder structure mismatch for site-astro: product spec defines 6 content types (essay, project, publication, note, update, milestone); actual `src/data/` has 6 folders but `essays/` and `publications/` had no Astro collections registered, `notes` collection was registered but `src/data/notes/` did not exist; how to detect and fix silent collection exclusions |
 
 ---
 
