@@ -23,14 +23,15 @@ import sys
 import subprocess
 from pathlib import Path
 from datetime import datetime, timezone
+from typing import Optional, List
 
 
 def ensure_dir(path: Path) -> None:
     path.mkdir(parents=True, exist_ok=True)
 
 
-def write_index(path: Path, title: str, node_type: str, parent: str | None = None,
-                body: str = "", decisions: list | None = None, links: list | None = None) -> None:
+def write_index(path: Path, title: str, node_type: str, parent: Optional[str] = None,
+                body: str = "", decisions: Optional[List[dict]] = None, links: Optional[List[dict]] = None) -> None:
     """Write an index.md with proper frontmatter."""
     fm_lines = ["---", f'title: "{title}"', f"type: {node_type}"]
     if parent:

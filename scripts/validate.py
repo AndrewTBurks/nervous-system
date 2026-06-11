@@ -2,26 +2,30 @@
 """
 validate.py — CNS frontmatter validator.
 
-Checks every .md file under .cns/ for:
-  1. Valid YAML frontmatter (--- delimited)
-  2. Required fields: title, type
-  3. decisions[] entries: each has id:, date:, author:, summary:
-  4. All links[] point to existing files
-
-Run after any CNS write:
-    python3 ~/.hermes/skills/nervous-system/scripts/validate.py /path/to/project
+Checks nervous-system Markdown nodes for:
+  1. Valid YAML frontmatter.
+  2. Required fields: title, type.
+  3. decisions[] entries with id/date/author/summary.
+  4. links[] entries that point to existing project-root-relative files.
 
 Exit code 0 = pass, 1 = fail.
 """
 
+import argparse
 import sys
-import yaml
 from pathlib import Path
+from typing import List
+
+try:
+    import yaml
+except ImportError:  # pragma: no cover - exercised by runtime environments
+    print("PyYAML is required. Install with: python3 -m pip install PyYAML", file=sys.stderr)
+    sys.exit(2)
 
 sys.path.insert(0, str(Path(__file__).parent))
 from shared import find_all_docs
 
-ERRORS: list[str] = []
+ERRORS: List[str] = []
 
 
 def fatal(msg: str) -> None:
@@ -30,86 +34,79 @@ def fatal(msg: str) -> None:
 
 def validate_frontmatter(rel_path: Path, content: str, root: Path) -> None:
     """Parse and validate the YAML frontmatter of a single .md file."""
-
-    def fatal(msg: str) -> None:
-        ERRORS.append(msg)
-
-    # Parse frontmatter
     if not content.startswith("---"):
-        fatal("no YAML frontmatter (missing opening ---)")
+        fatal(f"{rel_path}: no YAML frontmatter (missing opening ---)")
         return
 
     parts = content.split("---", 2)
     if len(parts) < 3:
-        fatal("cannot parse frontmatter (missing closing ---)")
+        fatal(f"{rel_path}: cannot parse frontmatter (missing closing ---)")
         return
     fm_text = parts[1]
 
     try:
         fm = yaml.safe_load(fm_text)
     except yaml.YAMLError as e:
-        fatal(f"YAML error: {e}")
+        fatal(f"{rel_path}: YAML error: {e}")
         return
 
     if not isinstance(fm, dict):
-        fatal("frontmatter is not a YAML dict")
+        fatal(f"{rel_path}: frontmatter is not a YAML dict")
         return
 
-    # Required fields
     if "title" not in fm:
-        fatal("missing required field 'title'")
+        fatal(f"{rel_path}: missing required field 'title'")
     if "type" not in fm:
-        fatal("missing required field 'type'")
+        fatal(f"{rel_path}: missing required field 'type'")
 
-    # decisions[] entries
     decisions = fm.get("decisions", [])
+    if decisions is None:
+        decisions = []
     if not isinstance(decisions, list):
-        fatal("'decisions' must be a list")
+        fatal(f"{rel_path}: 'decisions' must be a list")
     else:
-        seen_ids: set[str] = set()
+        seen_ids = set()
         for i, entry in enumerate(decisions):
             if not isinstance(entry, dict):
-                fatal(f"decisions[{i}] is not a dict")
+                fatal(f"{rel_path}: decisions[{i}] is not a dict")
                 continue
-            for field in ("id", "date", "author", "summary"):
-                if field not in entry:
-                    fatal(f"decisions[{i}] missing '{field}'")
+            for field_name in ("id", "date", "author", "summary"):
+                if field_name not in entry:
+                    fatal(f"{rel_path}: decisions[{i}] missing '{field_name}'")
             if "id" in entry:
                 rid = str(entry["id"])
                 if rid in seen_ids:
-                    fatal(f"duplicate decision id '{rid}'")
+                    fatal(f"{rel_path}: duplicate decision id '{rid}'")
                 seen_ids.add(rid)
 
-    # links[] — paths are relative to project root (where .cns/ lives)
     links = fm.get("links", [])
+    if links is None:
+        links = []
     if not isinstance(links, list):
-        fatal("'links' must be a list")
+        fatal(f"{rel_path}: 'links' must be a list")
     else:
+        project_root = root
         for i, entry in enumerate(links):
-            if isinstance(entry, dict) and "path" in entry:
-                link_path = entry["path"]
-                # Project root = parent of .cns/
-                project_root = root / ".cns" / ".."
-                resolved = (project_root / link_path).resolve()
-                if not resolved.exists():
-                    fatal(f"links[{i}] points to nonexistent file '{link_path}'")
+            if not isinstance(entry, dict):
+                fatal(f"{rel_path}: links[{i}] is not a dict")
+                continue
+            if "path" not in entry:
+                fatal(f"{rel_path}: links[{i}] missing 'path'")
+                continue
+            link_path = entry["path"]
+            resolved = (project_root / str(link_path)).resolve()
+            if not resolved.exists():
+                fatal(f"{rel_path}: links[{i}] points to nonexistent file '{link_path}'")
 
 
 def walk_cns(root: Path) -> int:
-    """Walk CNS and PNS and validate every nervous-system document. Returns 0 on pass, 1 on fail."""
+    """Walk CNS and PNS and validate every nervous-system document."""
     cns = root / ".cns"
     if not cns.is_dir():
         fatal(f"{root}: .cns/ directory not found")
         return 1
 
-    # Files that intentionally have no frontmatter:
-    #   log.md    — plain-text activity log, not a CNS node
-    #   intent.md — plain-text planned-work list, not a CNS node
-    #   plans/*.md — per-task implementation plans, plain text
-    # These are project-level plain-text files per the CNS spec.
     skip_names = {"log.md", "intent.md"}
-    skip_dirs = {".cns/plans"}
-
     md_files = find_all_docs(root)
     if not md_files:
         print(f"{root}: no nervous-system documents found")
@@ -119,27 +116,24 @@ def walk_cns(root: Path) -> int:
         rel = md_path.relative_to(root)
         if rel.name in skip_names:
             continue
-        if any(str(rel).startswith(d) for d in skip_dirs):
-            continue
-        # Skip any file inside .cns/plans/ directory (plain text, no frontmatter)
-        if "plans" in rel.parts and ".cns" in rel.parts:
+        if ".cns" in rel.parts and "plans" in rel.parts:
             continue
         try:
             content = md_path.read_text(encoding="utf-8")
         except Exception as e:
             fatal(f"{rel}: cannot read: {e}")
             continue
-        validate_frontmatter(Path(str(rel)), content, root)
+        validate_frontmatter(rel, content, root)
 
     return 1 if ERRORS else 0
 
 
-def main() -> int:
-    if len(sys.argv) < 2:
-        project_root = Path.cwd()
-    else:
-        project_root = Path(sys.argv[1]).resolve()
+def main(argv=None) -> int:
+    parser = argparse.ArgumentParser(description="Validate CNS frontmatter and project-root-relative links.")
+    parser.add_argument("project_root", nargs="?", default=".", help="Project root containing .cns/ (default: current directory)")
+    args = parser.parse_args(argv)
 
+    project_root = Path(args.project_root).resolve()
     print(f"Validating CNS at: {project_root}")
 
     exit_code = walk_cns(project_root)
@@ -148,7 +142,7 @@ def main() -> int:
         print(f"\n{len(ERRORS)} error(s):")
         for err in ERRORS:
             print(f"  - {err}")
-        print(f"\nvalidate.py FAILED")
+        print("\nvalidate.py FAILED")
     else:
         print("validate.py PASSED")
 
